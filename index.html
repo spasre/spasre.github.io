@@ -6,31 +6,31 @@ layout: null
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f8f7f4">
+  <meta name="theme-color" content="#f5f8fc">
   <meta name="description" content="欢迎来到 spasre 的博客，这里记录技术、生活与一路上的思考。">
   <title>spasre 的博客 — 写给生活，也写给未来</title>
   <style>
     :root {
       color-scheme: light;
-      --paper: #f8f7f4;
-      --ink: #20231f;
-      --muted: #777b72;
-      --green: #42634a;
-      --line: rgba(38, 48, 39, .12);
-      --soft-ink: #666b62;
-      --card-start: rgba(231, 235, 221, .8);
-      --card-end: rgba(240, 237, 224, .7);
-      --card-line: rgba(75, 94, 70, .12);
-      --field: rgba(255, 255, 255, .48);
-      --glow: rgba(218, 226, 205, .38);
+      --paper: #f5f8fc;
+      --ink: #1e2938;
+      --muted: #718096;
+      --blue: #35649e;
+      --line: rgba(42, 71, 108, .13);
+      --soft-ink: #53677f;
+      --card-start: rgba(222, 234, 248, .86);
+      --card-end: rgba(237, 243, 250, .82);
+      --card-line: rgba(53, 100, 158, .16);
+      --field: rgba(255, 255, 255, .62);
+      --glow: rgba(177, 204, 237, .38);
       --button-ink: #fff;
-      --button-hover: #344e3a;
-      --ornament: rgba(66, 99, 74, .15);
-      --ornament-ring: rgba(66, 99, 74, .035);
-      --card-divider: rgba(38, 48, 39, .13);
-      --footer-ink: #898b83;
-      --popup-shadow: 0 12px 32px rgba(25, 31, 25, .12);
-      --toggle-glow: rgba(66, 99, 74, .08);
+      --button-hover: #294f80;
+      --ornament: rgba(53, 100, 158, .19);
+      --ornament-ring: rgba(53, 100, 158, .045);
+      --card-divider: rgba(42, 71, 108, .15);
+      --footer-ink: #78889a;
+      --popup-shadow: 0 12px 32px rgba(30, 52, 79, .14);
+      --toggle-glow: rgba(81, 133, 194, .11);
       --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Noto Serif SC", "Songti SC", serif;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
       font-synthesis: none;
@@ -39,48 +39,48 @@ layout: null
     }
     :root[data-theme="dark"] {
       color-scheme: dark;
-      --paper: #111714;
-      --ink: #e7eee8;
-      --muted: #a0ada2;
-      --green: #a6c9a3;
-      --line: rgba(199, 220, 201, .13);
-      --soft-ink: #c3cec4;
-      --card-start: rgba(36, 51, 40, .92);
-      --card-end: rgba(27, 38, 33, .94);
-      --card-line: rgba(177, 207, 174, .17);
-      --field: rgba(226, 240, 226, .045);
-      --glow: rgba(91, 137, 99, .16);
-      --button-ink: #142017;
-      --button-hover: #c0d9bd;
-      --ornament: rgba(166, 201, 163, .2);
-      --ornament-ring: rgba(166, 201, 163, .045);
-      --card-divider: rgba(199, 220, 201, .15);
-      --footer-ink: #87958a;
-      --popup-shadow: 0 18px 48px rgba(0, 0, 0, .34);
-      --toggle-glow: rgba(166, 201, 163, .13);
+      --paper: #111a27;
+      --ink: #e7edf7;
+      --muted: #9aaac0;
+      --blue: #9bc4ff;
+      --line: rgba(194, 215, 245, .14);
+      --soft-ink: #c2d0e3;
+      --card-start: rgba(34, 54, 81, .94);
+      --card-end: rgba(25, 40, 61, .96);
+      --card-line: rgba(151, 187, 235, .2);
+      --field: rgba(218, 232, 255, .05);
+      --glow: rgba(60, 112, 181, .2);
+      --button-ink: #102039;
+      --button-hover: #c3dbff;
+      --ornament: rgba(155, 196, 255, .23);
+      --ornament-ring: rgba(155, 196, 255, .05);
+      --card-divider: rgba(194, 215, 245, .16);
+      --footer-ink: #8799b1;
+      --popup-shadow: 0 18px 48px rgba(0, 0, 0, .38);
+      --toggle-glow: rgba(111, 163, 231, .15);
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
         color-scheme: dark;
-        --paper: #111714;
-        --ink: #e7eee8;
-        --muted: #a0ada2;
-        --green: #a6c9a3;
-        --line: rgba(199, 220, 201, .13);
-        --soft-ink: #c3cec4;
-        --card-start: rgba(36, 51, 40, .92);
-        --card-end: rgba(27, 38, 33, .94);
-        --card-line: rgba(177, 207, 174, .17);
-        --field: rgba(226, 240, 226, .045);
-        --glow: rgba(91, 137, 99, .16);
-        --button-ink: #142017;
-        --button-hover: #c0d9bd;
-        --ornament: rgba(166, 201, 163, .2);
-        --ornament-ring: rgba(166, 201, 163, .045);
-        --card-divider: rgba(199, 220, 201, .15);
-        --footer-ink: #87958a;
-        --popup-shadow: 0 18px 48px rgba(0, 0, 0, .34);
-        --toggle-glow: rgba(166, 201, 163, .13);
+        --paper: #111a27;
+        --ink: #e7edf7;
+        --muted: #9aaac0;
+        --blue: #9bc4ff;
+        --line: rgba(194, 215, 245, .14);
+        --soft-ink: #c2d0e3;
+        --card-start: rgba(34, 54, 81, .94);
+        --card-end: rgba(25, 40, 61, .96);
+        --card-line: rgba(151, 187, 235, .2);
+        --field: rgba(218, 232, 255, .05);
+        --glow: rgba(60, 112, 181, .2);
+        --button-ink: #102039;
+        --button-hover: #c3dbff;
+        --ornament: rgba(155, 196, 255, .23);
+        --ornament-ring: rgba(155, 196, 255, .05);
+        --card-divider: rgba(194, 215, 245, .16);
+        --footer-ink: #8799b1;
+        --popup-shadow: 0 18px 48px rgba(0, 0, 0, .38);
+        --toggle-glow: rgba(111, 163, 231, .15);
       }
     }
 
@@ -97,7 +97,7 @@ layout: null
       transition: color .35s ease, background-color .35s ease;
     }
     a { color: inherit; }
-    a:focus-visible { outline: 2px solid var(--green); outline-offset: 5px; }
+    a:focus-visible { outline: 2px solid var(--blue); outline-offset: 5px; }
 
     .page { width: min(1120px, calc(100% - 64px)); margin: 0 auto; }
     .site-header {
@@ -127,7 +127,7 @@ layout: null
       place-items: center;
       border-radius: 50%;
       color: var(--paper);
-      background: var(--green);
+      background: var(--blue);
       font-family: var(--serif);
       font-size: 17px;
       font-weight: 400;
@@ -140,7 +140,7 @@ layout: null
       text-decoration: none;
       transition: color .2s ease;
     }
-    .nav a:hover { color: var(--green); }
+    .nav a:hover { color: var(--blue); }
     .header-actions { display: flex; align-items: center; gap: 9px; }
     .search-results {
       position: absolute;
@@ -189,7 +189,7 @@ layout: null
       background: var(--field);
       transition: border-color .2s ease, background .2s ease;
     }
-    .search-form:focus-within { border-color: var(--green); }
+    .search-form:focus-within { border-color: var(--blue); }
     .search-icon { flex: 0 0 auto; color: var(--muted); }
     .search-input {
       width: 100%;
@@ -211,7 +211,7 @@ layout: null
       place-items: center;
       border: 1px solid var(--line);
       border-radius: 50%;
-      color: var(--green);
+      color: var(--blue);
       background: var(--field);
       cursor: pointer;
       font-size: 18px;
@@ -220,11 +220,11 @@ layout: null
     }
     .theme-toggle:hover {
       transform: rotate(-12deg);
-      border-color: var(--green);
+      border-color: var(--blue);
       background: var(--toggle-glow);
       box-shadow: 0 0 0 4px var(--toggle-glow);
     }
-    .theme-toggle:focus-visible, .search-input:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+    .theme-toggle:focus-visible, .search-input:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 
     .hero {
       min-height: 530px;
@@ -239,7 +239,7 @@ layout: null
       align-items: center;
       gap: 9px;
       margin: 0 0 25px;
-      color: var(--green);
+      color: var(--blue);
       font-size: 11px;
       font-weight: 700;
       letter-spacing: .17em;
@@ -260,7 +260,7 @@ layout: null
       letter-spacing: -.065em;
       line-height: 1.2;
     }
-    h1 em { color: var(--green); font-weight: 500; }
+    h1 em { color: var(--blue); font-weight: 500; }
     .intro {
       max-width: 440px;
       margin: 24px 0 0;
@@ -276,10 +276,10 @@ layout: null
       justify-content: center;
       gap: 13px;
       padding: 0 19px;
-      border: 1px solid var(--green);
+      border: 1px solid var(--blue);
       border-radius: 3px;
       color: var(--button-ink);
-      background: var(--green);
+      background: var(--blue);
       font-size: 13px;
       text-decoration: none;
       transition: background .2s ease, transform .2s ease;
@@ -337,7 +337,7 @@ layout: null
       letter-spacing: -.04em;
       line-height: 1.65;
     }
-    .card-quote span { color: var(--green); }
+    .card-quote span { color: var(--blue); }
     .card-foot {
       position: relative;
       z-index: 1;
@@ -415,7 +415,7 @@ layout: null
     }
     .section-kicker {
       margin: 4px 0 0;
-      color: var(--green);
+      color: var(--blue);
       font-size: 11px;
       font-weight: 700;
       letter-spacing: .16em;
@@ -723,7 +723,7 @@ layout: null
       themeToggle.title = dark ? "切换日间模式" : "切换夜间模式";
       moonIcon.hidden = dark;
       sunIcon.hidden = !dark;
-      themeColor.content = dark ? "#111714" : "#f8f7f4";
+      themeColor.content = dark ? "#111a27" : "#f5f8fc";
     }
 
     themeToggle.addEventListener("click", () => {
