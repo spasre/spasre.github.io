@@ -1,0 +1,12 @@
+title: spasre 的博客
+description: 记录技术、生活与一路上的思考。
+lang: zh-CN
+markdown: kramdown
+permalink: /:year/:month/:day/:title/
+
+defaults:
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: post
