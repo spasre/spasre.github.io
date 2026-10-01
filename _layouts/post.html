@@ -1,167 +1,14 @@
 <!DOCTYPE html>
 <html lang="{{ site.lang | default: 'zh-CN' }}">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f5f8fc">
+{% include head-common.html %}
   <meta name="description" content="{{ page.excerpt | default: site.description | strip_html | normalize_whitespace | escape }}">
   <title>{{ page.title | escape }} — {{ site.title | escape }}</title>
-  <script>
-    try {
-      const savedTheme = localStorage.getItem("spasre-theme");
-      if (savedTheme === "light" || savedTheme === "dark") {
-        document.documentElement.dataset.theme = savedTheme;
-        document.querySelector('meta[name="theme-color"]').content =
-          savedTheme === "dark" ? "#111a27" : "#f5f8fc";
-      }
-    } catch (error) {
-      console.warn("Unable to read the saved theme preference.", error);
-    }
-  </script>
-  <style>
-    :root {
-      color-scheme: light;
-      --paper: #f5f8fc;
-      --ink: #1e2938;
-      --muted: #718096;
-      --blue: #35649e;
-      --line: rgba(42, 71, 108, .13);
-      --field: rgba(255, 255, 255, .62);
-      --card: rgba(222, 234, 248, .72);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      font-synthesis: none;
-      text-rendering: optimizeLegibility;
-      -webkit-font-smoothing: antialiased;
-    }
-    :root[data-theme="dark"] {
-      color-scheme: dark;
-      --paper: #111a27;
-      --ink: #e7edf7;
-      --muted: #9aaac0;
-      --blue: #9bc4ff;
-      --line: rgba(194, 215, 245, .14);
-      --field: rgba(218, 232, 255, .05);
-      --card: rgba(34, 54, 81, .82);
-    }
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        color-scheme: dark;
-        --paper: #111a27;
-        --ink: #e7edf7;
-        --muted: #9aaac0;
-        --blue: #9bc4ff;
-        --line: rgba(194, 215, 245, .14);
-        --field: rgba(218, 232, 255, .05);
-        --card: rgba(34, 54, 81, .82);
-      }
-    }
-    *, *::before, *::after { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      min-width: 320px;
-      margin: 0;
-      color: var(--ink);
-      background: radial-gradient(ellipse at 82% 8%, var(--card), transparent 32rem), var(--paper);
-      transition: color .3s ease, background-color .3s ease;
-    }
-    a { color: inherit; }
-    a:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
-    .page { width: min(760px, calc(100% - 48px)); margin: 0 auto; }
-    .site-header {
-      min-height: 76px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-      border-bottom: 1px solid var(--line);
-    }
-    .wordmark { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 650; text-decoration: none; }
-    .mark {
-      display: grid;
-      width: 30px;
-      height: 30px;
-      place-items: center;
-      border-radius: 50%;
-      color: var(--paper);
-      background: var(--blue);
-      font-family: Georgia, serif;
-      font-size: 17px;
-      font-weight: 400;
-    }
-    .header-tools { display: flex; align-items: center; gap: 22px; }
-    .nav { display: flex; gap: 22px; }
-    .nav a { color: var(--muted); font-size: 12px; text-decoration: none; }
-    .nav a:hover, .back-link:hover { color: var(--blue); }
-    .theme-toggle {
-      display: grid;
-      width: 36px;
-      height: 36px;
-      place-items: center;
-      border: 1px solid var(--line);
-      border-radius: 50%;
-      color: var(--blue);
-      background: var(--field);
-      cursor: pointer;
-    }
-    .post { padding: 66px 0 92px; }
-    .post-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--muted); font-size: 11px; }
-    .post-meta time { letter-spacing: .06em; }
-    .category { padding: 4px 8px; border: 1px solid var(--line); border-radius: 2px; color: var(--blue); }
-    h1, h2, h3, h4 { font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Noto Serif SC", "Songti SC", serif; }
-    h1 { margin: 19px 0 0; font-size: clamp(34px, 7vw, 54px); font-weight: 500; letter-spacing: -.055em; line-height: 1.25; }
-    .post-excerpt { margin: 18px 0 0; color: var(--muted); font-size: 15px; line-height: 1.9; }
-    .post-body { margin-top: 48px; font-size: 15px; line-height: 2; overflow-wrap: anywhere; }
-    .post-body h2 { margin: 2em 0 .65em; font-size: 27px; font-weight: 500; letter-spacing: -.035em; line-height: 1.4; }
-    .post-body h3 { margin: 1.8em 0 .5em; font-size: 21px; font-weight: 500; }
-    .post-body p, .post-body ul, .post-body ol, .post-body blockquote { margin: 1.1em 0; }
-    .post-body a { color: var(--blue); text-underline-offset: 3px; }
-    .post-body img { max-width: 100%; height: auto; border-radius: 4px; }
-    .post-body blockquote { padding: 2px 0 2px 18px; border-left: 2px solid var(--blue); color: var(--muted); }
-    .post-body pre { overflow-x: auto; padding: 17px 19px; border: 1px solid var(--line); border-radius: 4px; background: var(--field); font-size: 13px; line-height: 1.7; }
-    .post-body code { padding: .15em .35em; border-radius: 3px; background: var(--field); font-size: .88em; }
-    .post-body pre code { padding: 0; background: transparent; }
-    .post-body hr { margin: 2em 0; border: 0; border-top: 1px solid var(--line); }
-    .post-footer { margin-top: 54px; padding-top: 20px; border-top: 1px solid var(--line); }
-    .back-link { color: var(--muted); font-size: 13px; text-decoration: none; }
-    @media (max-width: 520px) {
-      .page { width: calc(100% - 36px); }
-      .site-header { min-height: 68px; }
-      .header-tools { gap: 13px; }
-      .nav { gap: 13px; }
-      .nav a { font-size: 11px; }
-      .post { padding: 48px 0 70px; }
-      .post-body { margin-top: 35px; font-size: 14px; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
-    }
-  </style>
 </head>
 <body>
   <div class="page">
-    <header class="site-header">
-      <a class="wordmark" href="{{ '/' | relative_url }}" aria-label="{{ site.title | escape }}，返回首页">
-        <span class="mark" aria-hidden="true">s</span>
-        <span>{{ site.title | escape }}</span>
-      </a>
-      <div class="header-tools">
-        <nav class="nav" aria-label="主导航">
-          <a href="{{ '/' | relative_url }}">首页</a>
-          <a href="{{ '/' | relative_url }}#articles">文章</a>
-          <a href="{{ '/' | relative_url }}#about">关于</a>
-        </nav>
-        <button class="theme-toggle" type="button" aria-label="切换夜间模式" aria-pressed="false" title="切换夜间模式">
-          <svg class="moon-icon" aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none">
-            <path d="M20.1 15.2A8.5 8.5 0 0 1 8.8 3.9 8.6 8.6 0 1 0 20.1 15.2Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <svg class="sun-icon" aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" hidden>
-            <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.7"/>
-            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-          </svg>
-        </button>
-      </div>
-    </header>
-    <main class="post">
+{% include header.html %}
+    <main class="post" id="top">
       <div class="post-meta">
         <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: "%Y年%m月%d日" }}</time>
         {% for category in page.categories %}<span class="category">{{ category | escape }}</span>{% endfor %}
@@ -169,45 +16,12 @@
       <h1>{{ page.title | escape }}</h1>
       {% if page.excerpt %}<p class="post-excerpt">{{ page.excerpt | strip_html | normalize_whitespace | escape }}</p>{% endif %}
       <article class="post-body">{{ content }}</article>
-      <footer class="post-footer">
+      <div class="post-footer">
         <a class="back-link" href="{{ '/' | relative_url }}#articles">← 返回文章列表</a>
-      </footer>
+      </div>
     </main>
+{% include footer.html %}
   </div>
-  <script>
-    const toggle = document.querySelector(".theme-toggle");
-    const moon = document.querySelector(".moon-icon");
-    const sun = document.querySelector(".sun-icon");
-    const themeColor = document.querySelector('meta[name="theme-color"]');
-
-    function isDark() {
-      return document.documentElement.dataset.theme
-        ? document.documentElement.dataset.theme === "dark"
-        : window.matchMedia("(prefers-color-scheme: dark)").matches;
-    }
-
-    function updateTheme() {
-      const dark = isDark();
-      toggle.setAttribute("aria-pressed", String(dark));
-      toggle.setAttribute("aria-label", dark ? "切换日间模式" : "切换夜间模式");
-      toggle.title = dark ? "切换日间模式" : "切换夜间模式";
-      moon.hidden = dark;
-      sun.hidden = !dark;
-      themeColor.content = dark ? "#111a27" : "#f5f8fc";
-    }
-
-    toggle.addEventListener("click", () => {
-      const theme = isDark() ? "light" : "dark";
-      document.documentElement.dataset.theme = theme;
-      try {
-        localStorage.setItem("spasre-theme", theme);
-      } catch (error) {
-        console.error("Unable to save the theme preference.", error);
-      }
-      updateTheme();
-    });
-
-    updateTheme();
-  </script>
+  <script src="{{ '/assets/js/site.js' | relative_url }}"></script>
 </body>
 </html>
