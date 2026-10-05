@@ -3,6 +3,8 @@ description: 记录技术、生活与一路上的思考。
 author: spasre
 lang: zh-CN
 markdown: kramdown
+# 文章日期晚于构建时间也立即发布，避免「今天写的文章要等到当天 20:00 才出现」
+future: true
 permalink: /:year/:month/:day/:title/
 
 defaults:

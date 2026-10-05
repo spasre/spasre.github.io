@@ -27,6 +27,8 @@
 
 文章使用 `_layouts/post.html` 排版，发布地址默认为 `/年/月/日/文章标题/`。本地预览需要先安装 Ruby 和 Jekyll，再运行 `jekyll serve`；也可以直接推送到 GitHub，由 GitHub Pages 自动构建发布。
 
+`_config.yml` 里开启了 `future: true`，所以文章日期即使晚于推送时间（例如当天晚上 20:00）也会立刻发布，不必等到那个时间点。
+
 ## 目录结构
 
 ```
