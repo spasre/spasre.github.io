@@ -727,6 +727,23 @@ h1 {
 
 .task-agent-status { margin: 12px 0 0; color: var(--soft-ink); font-size: 12px; white-space: pre-line; }
 
+.task-agent-tools { align-items: center; }
+
+.task-details { margin-top: 14px; }
+.task-details > summary {
+  padding: 4px 0;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.task-details > summary::-webkit-details-marker { display: none; }
+.task-details > summary::before { content: "▸ "; }
+.task-details[open] > summary::before { content: "▾ "; }
+.task-details > summary:hover, .task-details > summary:focus-visible { color: var(--brand); }
+.task-details .task-hint { margin-top: 10px; }
+.task-details .task-field { margin-top: 10px; max-width: 420px; }
+
 .task-trash-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 
 .task-home-foot { margin-top: 12px; }

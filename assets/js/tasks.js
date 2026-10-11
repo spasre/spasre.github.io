@@ -34,8 +34,14 @@
     defaultCategory: "学习",
     pinnedCategories: ["学习", "每日推荐"],
     dailyRecommendation: true,
+    agentBaseUrl: "",
+    agentModel: "",
+    agentApiKey: "",
+    agentRememberKey: true,
     agentEndpoint: ""
   };
+  const AGENT_KEY_STORAGE = "spasre-agent-key";
+  const AGENT_TIMEOUT = 60000;
 
   const DOG_ICON =
     '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">' +
@@ -89,6 +95,31 @@
       window.localStorage.setItem(STORE_KEY, JSON.stringify(store));
     } catch (error) {
       console.error("无法保存任务数据。", error);
+    }
+  }
+
+  /* ---------- agent key ---------- */
+
+  // 勾了「记住密钥」才写进 localStorage；否则只放 sessionStorage，关掉标签页就没了。
+  function readAgentKey() {
+    try {
+      const session = window.sessionStorage.getItem(AGENT_KEY_STORAGE);
+      if (session) return session;
+    } catch (error) {
+      /* 隐私模式下 sessionStorage 可能不可用 */
+    }
+    return String(store.settings.agentApiKey || "");
+  }
+
+  function writeAgentKey(value) {
+    const clean = String(value || "").trim();
+    store.settings.agentApiKey = store.settings.agentRememberKey ? clean : "";
+    save();
+    try {
+      if (store.settings.agentRememberKey) window.sessionStorage.removeItem(AGENT_KEY_STORAGE);
+      else window.sessionStorage.setItem(AGENT_KEY_STORAGE, clean);
+    } catch (error) {
+      /* 同上 */
     }
   }
 
@@ -488,6 +519,18 @@
     const endpoint = document.getElementById("agent-endpoint");
     if (endpoint) endpoint.value = store.settings.agentEndpoint || "";
 
+    const baseInput = document.getElementById("agent-base");
+    if (baseInput) baseInput.value = store.settings.agentBaseUrl || "";
+
+    const modelInput = document.getElementById("agent-model");
+    if (modelInput) modelInput.value = store.settings.agentModel || "";
+
+    const keyInput = document.getElementById("agent-key");
+    if (keyInput && !keyInput.value) keyInput.value = readAgentKey();
+
+    const rememberBox = document.getElementById("agent-remember-key");
+    if (rememberBox) rememberBox.checked = Boolean(store.settings.agentRememberKey);
+
     const addCategory = document.getElementById("task-category");
     if (addCategory && !addCategory.value) addCategory.value = store.settings.defaultCategory;
   }
@@ -797,10 +840,161 @@
 
   /* ---------- 助手：接口调用 ---------- */
 
+  /* ---------- model api (openai compatible) ---------- */
+
+  function agentChatUrl(base) {
+    const trimmed = String(base || "").trim().replace(/\/+$/, "");
+    if (!trimmed) return "";
+    if (/\/chat\/completions$/.test(trimmed)) return trimmed;
+    return trimmed + "/chat/completions";
+  }
+
+  function agentSystemPrompt() {
+    const today = todayKey();
+    const weekday = "日一二三四五六"[new Date().getDay()];
+    const names = categories();
+    const existing = store.tasks.map((task) => task.title).slice(0, 60);
+    return [
+      "你是一个任务规划助手，把用户说的话拆成可执行的任务。",
+      "今天是 " + today + "（星期" + weekday + "）。",
+      "category 必须从这些里选一个：" + names.join("、") + "；拿不准就用 " + store.settings.defaultCategory + "。",
+      "urgency 只能是 urgent / high / normal / low 之一，分别代表紧急 / 重要 / 普通 / 不急。",
+      "date 用 YYYY-MM-DD，只在确实和日期有关时才给，今天就是 " + today + "；不确定就省略这个字段。",
+      "已经有这些任务，不要重复添加：" + (existing.length > 0 ? existing.join("；") : "（还没有）"),
+      "如果用户是在问问题（例如今天有什么任务、这周该怎么安排），就把回答写进 reply，不要凭空造任务。",
+      '只输出一个 JSON 对象，不要写解释，也不要用 markdown 代码块。格式是：{"reply": "给用户看的一两句话", "tasks": [{"title": "任务标题", "category": "分类", "urgency": "normal", "date": "YYYY-MM-DD"}]}',
+      "没有新任务时 tasks 就是空数组。"
+    ].join("\n");
+  }
+
+  function extractJson(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return null;
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const body = fenced ? fenced[1].trim() : raw;
+    try {
+      return JSON.parse(body);
+    } catch (error) {
+      /* 模型爱在 JSON 前后加话，下面按括号截取 */
+    }
+    const candidates = [
+      [body.indexOf("{"), body.lastIndexOf("}")],
+      [body.indexOf("["), body.lastIndexOf("]")]
+    ];
+    for (const pair of candidates) {
+      if (pair[0] === -1 || pair[1] <= pair[0]) continue;
+      try {
+        return JSON.parse(body.slice(pair[0], pair[1] + 1));
+      } catch (error) {
+        /* 试下一种 */
+      }
+    }
+    return null;
+  }
+
+  function normalizePlan(list) {
+    const allowed = categories();
+    return (Array.isArray(list) ? list : [])
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const title = String(item.title || item.name || "").trim();
+        if (!title) return null;
+        const date = String(item.date || "").trim();
+        return {
+          title: title,
+          category: allowed.includes(item.category) ? item.category : store.settings.defaultCategory,
+          urgency: URGENCY_KEYS.includes(item.urgency) ? item.urgency : "normal",
+          date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : ""
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function agentHttpMessage(status, detail) {
+    const tail = detail ? "：" + detail : "";
+    if (status === 401 || status === 403) return "密钥不对或者没权限（" + status + "）" + tail;
+    if (status === 404) return "接口地址不对（404），根路径一般要带 /v1" + tail;
+    if (status === 429) return "请求太频繁，或者额度用完了（429）" + tail;
+    if (status === 400) return "请求被接口拒绝（400）" + tail;
+    if (status >= 500) return "接口自己出错了（" + status + "）" + tail;
+    return "接口返回 " + status + tail;
+  }
+
+  async function agentFetch(body) {
+    const url = agentChatUrl(store.settings.agentBaseUrl);
+    if (!url) throw new Error("先把模型接口地址填上。");
+    const model = String(store.settings.agentModel || "").trim();
+    if (!model) throw new Error("把模型名填上，比如 deepseek-chat。");
+
+    const headers = { "Content-Type": "application/json" };
+    const key = readAgentKey();
+    if (key) headers.Authorization = "Bearer " + key;
+
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller ? window.setTimeout(() => controller.abort(), AGENT_TIMEOUT) : 0;
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        signal: controller ? controller.signal : undefined,
+        body: JSON.stringify(Object.assign({ model: model }, body))
+      });
+    } catch (error) {
+      if (controller && error && error.name === "AbortError") throw new Error("请求超时了，模型太慢或者地址不通。");
+      throw new Error(
+        "连不上接口：地址写错了、网络不通，或者这家接口不允许网页直连（跨域 CORS）。可以换本地 Ollama，或者把地址指向自己的代理。"
+      );
+    } finally {
+      if (timer) window.clearTimeout(timer);
+    }
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const detail = payload && payload.error ? payload.error.message || payload.error.type : "";
+      throw new Error(agentHttpMessage(response.status, detail));
+    }
+    const choice = payload && Array.isArray(payload.choices) ? payload.choices[0] : null;
+    const content = choice && choice.message && typeof choice.message.content === "string" ? choice.message.content : "";
+    if (!content.trim()) throw new Error("模型没有返回内容。");
+    return content;
+  }
+
+  async function askAgent(text) {
+    const content = await agentFetch({
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: agentSystemPrompt() },
+        { role: "user", content: text }
+      ]
+    });
+
+    const parsed = extractJson(content);
+    const plan = normalizePlan(parsed ? (Array.isArray(parsed) ? parsed : parsed.tasks) : null);
+    const added = addPlanned(plan);
+    const remoteReply = parsed && typeof parsed.reply === "string" ? parsed.reply.trim() : "";
+    let reply = remoteReply;
+    if (!reply) reply = added.length > 0 ? "助手添加了 " + added.length + " 个任务。" : "助手没有返回新任务。";
+    if (added.length > 0) reply += "\n" + describeList(added, 10);
+    return { source: "api", reply, added };
+  }
+
+  async function testAgent() {
+    const model = String(store.settings.agentModel || "").trim();
+    await agentFetch({
+      max_tokens: 8,
+      temperature: 0,
+      messages: [{ role: "user", content: "ping" }]
+    });
+    return "连接正常，" + model + " 可以用了。";
+  }
+
   function addPlanned(list) {
     const added = [];
+    const known = store.tasks.map((task) => String(task.title).trim());
     (list || []).forEach((item) => {
       if (!item || !item.title) return;
+      if (known.includes(String(item.title).trim())) return;
       const task = createTask({
         title: item.title,
         category: item.category || store.settings.defaultCategory,
@@ -808,7 +1002,10 @@
         date: item.date,
         source: "agent"
       });
-      if (task) added.push(task);
+      if (task) {
+        added.push(task);
+        known.push(String(task.title).trim());
+      }
     });
     if (added.length > 0) renderAll();
     return added;
@@ -843,6 +1040,7 @@
   async function ask(prompt) {
     const text = String(prompt || "").trim();
     if (!text) throw new Error("先写点想做的事，或者想问的问题。");
+    if (String(store.settings.agentBaseUrl || "").trim()) return askAgent(text);
     if (String(store.settings.agentEndpoint || "").trim()) return askRemote(text);
 
     if (looksLikeQuestion(text)) {
@@ -1021,18 +1219,72 @@
       endpoint.addEventListener("change", () => updateSettings({ agentEndpoint: endpoint.value.trim() }));
     }
 
+    const baseInput = document.getElementById("agent-base");
+    if (baseInput) {
+      baseInput.addEventListener("change", () => updateSettings({ agentBaseUrl: baseInput.value.trim() }));
+    }
+
+    const modelInput = document.getElementById("agent-model");
+    if (modelInput) {
+      modelInput.addEventListener("change", () => updateSettings({ agentModel: modelInput.value.trim() }));
+    }
+
+    const keyInput = document.getElementById("agent-key");
+    if (keyInput) {
+      keyInput.addEventListener("change", () => {
+        store.settings.agentApiKey = store.settings.agentRememberKey ? keyInput.value.trim() : "";
+        writeAgentKey(keyInput.value);
+      });
+    }
+
+    const rememberBox = document.getElementById("agent-remember-key");
+    if (rememberBox) {
+      rememberBox.addEventListener("change", () => {
+        updateSettings({ agentRememberKey: rememberBox.checked });
+        writeAgentKey(keyInput ? keyInput.value : "");
+      });
+    }
+
+    const testButton = document.getElementById("agent-test");
+    if (testButton) {
+      testButton.addEventListener("click", async () => {
+        const status = document.getElementById("agent-status");
+        if (baseInput) updateSettings({ agentBaseUrl: baseInput.value.trim() });
+        if (modelInput) updateSettings({ agentModel: modelInput.value.trim() });
+        writeAgentKey(keyInput ? keyInput.value : "");
+        if (testButton.disabled) return;
+        testButton.disabled = true;
+        if (status) status.textContent = "正在测试连接…";
+        try {
+          const message = await testAgent();
+          if (status) status.textContent = message;
+        } catch (error) {
+          if (status) status.textContent = String(error.message || error);
+        } finally {
+          testButton.disabled = false;
+        }
+      });
+    }
+
     const runButton = document.getElementById("agent-run");
     if (runButton) {
       runButton.addEventListener("click", async () => {
         const status = document.getElementById("agent-status");
         const prompt = document.getElementById("agent-prompt");
         updateSettings({ agentEndpoint: endpoint ? endpoint.value.trim() : "" });
+        if (baseInput) updateSettings({ agentBaseUrl: baseInput.value.trim() });
+        if (modelInput) updateSettings({ agentModel: modelInput.value.trim() });
+        writeAgentKey(keyInput ? keyInput.value : "");
+        if (runButton.disabled) return;
+        runButton.disabled = true;
         if (status) status.textContent = "正在处理…";
         try {
           const result = await ask(prompt ? prompt.value : "");
           if (status) status.textContent = result.reply;
         } catch (error) {
           if (status) status.textContent = String(error.message || error);
+        } finally {
+          runButton.disabled = false;
         }
       });
     }
@@ -1097,7 +1349,10 @@
       return count;
     },
     settings: function () {
-      return Object.assign({}, store.settings);
+      const snapshot = Object.assign({}, store.settings);
+      // 控制台里不直接吐明文密钥，避免顺手复制分享出去
+      snapshot.agentApiKey = snapshot.agentApiKey ? "已设置" : "";
+      return snapshot;
     },
     updateSettings: function (patch) {
       updateSettings(patch);
@@ -1107,6 +1362,23 @@
     setAgentEndpoint: function (url) {
       return this.updateSettings({ agentEndpoint: String(url || "").trim() });
     },
+    setAgent: function (options) {
+      const config = options || {};
+      const patch = {};
+      if (config.baseUrl !== undefined) patch.agentBaseUrl = String(config.baseUrl || "").trim();
+      if (config.model !== undefined) patch.agentModel = String(config.model || "").trim();
+      if (config.rememberKey !== undefined) patch.agentRememberKey = Boolean(config.rememberKey);
+      updateSettings(patch);
+      if (config.apiKey !== undefined) writeAgentKey(config.apiKey);
+      renderAll();
+      return {
+        baseUrl: store.settings.agentBaseUrl,
+        model: store.settings.agentModel,
+        rememberKey: store.settings.agentRememberKey,
+        hasKey: Boolean(readAgentKey())
+      };
+    },
+    testAgent: testAgent,
     requestPlan: requestPlan,
     ask: ask,
     plan: localPlan,

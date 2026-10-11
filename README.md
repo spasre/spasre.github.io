@@ -43,13 +43,57 @@
 
 ### 助手
 
-助手区块不填接口地址也能用，走内置规划（纯前端、不上网）：
+助手区块按「填了什么用什么」的优先级工作：模型接口 → 自定义接口 → 内置规划。
+
+**内置规划**（什么都不填就能用，纯前端、不上网）：
 
 - 写一段话就会拆成任务，用换行、分号、句号或「1. 2. 3.」分隔，例如
   `帮我规划这周：复习 IR；周三整理周报；今天把周报写完` → 3 条任务，其中「周三」「今天」会覆盖开头写的「这周」。
 - 认日期：今天 / 明天 / 后天 / 本周 / 下周 / 周三 / 10-12 / 2026-10-12，认紧急程度：紧急 / 重要 / 不急，也会按文字里出现的分类归类。
 - 问句会去读任务板再回答，例如「今天有什么任务」「有没有逾期的」「这周有什么」「一共多少任务」「回收站里有什么」。
-- 在「接口地址」里填上自己的接口后，就改由那个接口处理：请求体是 `{ prompt, today, categories, tasks }`，返回 `{ "tasks": [{ "title", "category", "urgency", "date" }] }` 会写进任务板，返回 `{ "reply": "..." }` 会显示在状态栏；只返回数组也可以。接口地址留空就退回内置规划。
+
+**接自己的模型**：填「模型接口地址」「模型名」「密钥」，点「测试连接」确认能通，之后写一句话交给它，返回的任务会直接写进任务板。
+
+- 走 OpenAI 兼容格式，会自动把地址补成 `/chat/completions`。DeepSeek、Moonshot、Groq、SiliconFlow、OpenAI 都能用；本地模型填 `http://localhost:11434/v1`（Ollama）这类地址，密钥留空即可。
+- 请求里会带上今天的日期、可用分类、已有任务列表，并要求模型只返回
+  `{"reply": "...", "tasks": [{ "title", "category", "urgency", "date" }]}`。返回里 `category` 不在分类表中会落到默认分类，`urgency`、`date` 不合法会被纠正或丢掉，和已有任务重名的会跳过。
+- 报错会分情况提示：401/403 密钥问题、404 地址少了 `/v1`、429 频率或额度、跨域失败提示改用代理。
+- **密钥只存在你自己的浏览器里**（勾了「记住密钥」进 localStorage，不勾只进 sessionStorage，关掉标签页就没了），不会上传到博客。但纯静态站直连 API 意味着密钥在浏览器里，别在公用电脑上填。
+- 有些接口不允许网页直连（CORS），这时地址指向自己的代理就行，见下面。
+
+**接口不让网页直连时**（控制台报 CORS），用一个自己的转发就够了，Cloudflare Worker 十几行：
+
+```js
+export default {
+  async fetch(request) {
+    if (request.method === "OPTIONS") return new Response(null, { headers: cors() });
+    const upstream = await fetch("https://api.deepseek.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: request.headers.get("authorization") || ""
+      },
+      body: request.body
+    });
+    const response = new Response(upstream.body, upstream);
+    Object.entries(cors()).forEach(([key, value]) => response.headers.set(key, value));
+    return response;
+  }
+};
+
+function cors() {
+  return {
+    // 只允许自己的博客调用，别人拿去也是白拿
+    "access-control-allow-origin": "https://spasre.github.io",
+    "access-control-allow-headers": "content-type, authorization",
+    "access-control-allow-methods": "POST, OPTIONS"
+  };
+}
+```
+
+然后把任务板里的「模型接口地址」填成这个 Worker 的地址（例如 `https://xxx.workers.dev/v1`），密钥照旧填自己的。注意密钥仍然是从浏览器发出去的，代理只是解决跨域，不改变「密钥在你浏览器里」这件事。
+
+**自定义接口**（「高级」折叠里）：填了就走它，优先级低于模型接口。请求体是 `{ prompt, today, categories, tasks }`，返回 `{ "tasks": [...] }` 会写进任务板，返回 `{ "reply": "..." }` 会显示在状态栏，只返回数组也可以。
 
 ### 给助手 / 脚本用的接口
 
@@ -63,8 +107,10 @@ spasreTasks.complete(id);                            // 小狗叼走
 spasreTasks.restore(id);                             // 从回收站恢复
 spasreTasks.purge(id);                               // 永久清除
 spasreTasks.updateSettings({ defaultCategory: "工作" });
+spasreTasks.setAgent({ baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", apiKey: "sk-…" });
+await spasreTasks.testAgent();                       // 测一下模型接口通不通
 spasreTasks.plan("复习 IR；整理周报");                 // 只算计划，不落库
-await spasreTasks.ask("帮我规划这周");                 // → { source, reply, added }，接口留空就用内置规划
+await spasreTasks.ask("帮我规划这周");                 // → { source, reply, added }，没配接口就用内置规划
 await spasreTasks.answer("今天有什么任务");            // 读任务板回答
 await spasreTasks.requestPlan("帮我排一下本周任务");    // 同上，但只返回新增的任务数组
 ```
