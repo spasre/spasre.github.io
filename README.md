@@ -117,6 +117,16 @@ function cors() {
 
 **自定义接口**（「高级」折叠里）：填了就走它，优先级低于模型接口。请求体是 `{ prompt, today, categories, tasks }`，返回 `{ "tasks": [...] }` 会写进任务板，返回 `{ "reply": "..." }` 会显示在状态栏，只返回数组也可以。
 
+### 推荐阅读
+
+每日推荐的知识点任务、以及助手规划出来的学习类任务，都会带上 1-3 条延伸阅读链接；点任务卡片的标题就会弹出窗口显示这些链接。
+
+- 链接来自仓库内置的一份精选文档目录（LLVM / Clang / GDB / C++ / MDN / Jekyll 等 24 条），写在 `assets/js/tasks.js` 的 `ARTICLE_SOURCES` 里，要加就照着改，字段是 `title`、`url`、`tags`。
+- 任务本身没有链接时，按标题 + 分类里的关键词去目录里匹配，命中标签越多的排越前，最多给 3 条。
+- 纯前端、不抓网页：静态站点没有后端，所以不去搜索，只在目录里挑。目录里没有合适的就一条都不给。
+- 接了自己的模型时，目录会一起写进系统提示词，要求它只能从这里挑、`url` 原样照抄；模型给回来的链接会再校验一遍（必须是 `http`/`https`、去重、最多 3 条），编造的或格式不对的会被丢掉。
+- 弹窗按 Esc、点遮罩、点关闭按钮都能关掉。
+
 ### 给助手 / 脚本用的接口
 
 任务板把接口挂在 `window.spasreTasks` 上，方便以后接一个 agent 来读任务、往里加任务：
@@ -138,6 +148,10 @@ spasreTasks.plan("复习 IR；整理周报");                 // 只算计划，
 await spasreTasks.ask("帮我规划这周");                 // → { source, reply, added }，没配接口就用内置规划
 await spasreTasks.answer("今天有什么任务");            // 读任务板回答
 await spasreTasks.requestPlan("帮我排一下本周任务");    // 同上，但只返回新增的任务数组
+spasreTasks.linksFor(id);                            // 这条任务的推荐阅读
+spasreTasks.openLinks(id);                           // 打开推荐阅读弹窗
+spasreTasks.matchArticles("LLVM IR");                // 只做目录匹配，不落库
+spasreTasks.articleSources();                        // 内置文档目录
 ```
 
 ## 界面

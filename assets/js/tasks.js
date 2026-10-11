@@ -30,6 +30,131 @@
     "弄懂 -Werror 下版本升级的告警对齐思路",
     "复习寄存器分配与指令选择的基本流程"
   ];
+  // 推荐阅读的来源。全部是公开文档，链接在 2026-10 逐个确认能打开；
+  // tags 用来跟任务标题 / 分类做关键词匹配，命中的 tag 越多排得越靠前。
+  const ARTICLE_SOURCES = [
+    {
+      title: "LLVM Language Reference：IR 语法与指令参考",
+      url: "https://llvm.org/docs/LangRef.html",
+      tags: ["llvm", "ir", "ssa", "指令", "语言参考", "汇编"]
+    },
+    {
+      title: "LLVM IR：未定义值 undef 与 poison",
+      url: "https://llvm.org/docs/LangRef.html#undefined-values",
+      tags: ["ub", "未定义行为", "undef", "poison", "undefined", "未定义值"]
+    },
+    {
+      title: "LLVM IR：指针别名与 provenance 溯源",
+      url: "https://llvm.org/docs/LangRef.html#pointeraliasing",
+      tags: ["provenance", "溯源", "指针", "别名", "alias", "getelementptr"]
+    },
+    {
+      title: "LLVM IR：调用约定（Calling Conventions）",
+      url: "https://llvm.org/docs/LangRef.html#calling-conventions",
+      tags: ["abi", "调用约定", "calling", "约定", "传参"]
+    },
+    {
+      title: "LLVM Programmer's Manual：源码结构与常用 API",
+      url: "https://llvm.org/docs/ProgrammersManual.html",
+      tags: ["llvm", "源码", "数据结构", "api", "阅读源码"]
+    },
+    {
+      title: "Writing an LLVM Pass：写一个 Pass",
+      url: "https://llvm.org/docs/WritingAnLLVMPass.html",
+      tags: ["pass", "pass manager", "优化", "分层"]
+    },
+    {
+      title: "LLVM Analysis and Transform Passes：Pass 清单",
+      url: "https://llvm.org/docs/Passes.html",
+      tags: ["pass", "优化", "清单", "列表", "分析"]
+    },
+    {
+      title: "Alias Analysis Infrastructure：别名分析",
+      url: "https://llvm.org/docs/AliasAnalysis.html",
+      tags: ["别名分析", "alias analysis", "指针", "优化"]
+    },
+    {
+      title: "The LLVM Target-Independent Code Generator：后端与指令选择",
+      url: "https://llvm.org/docs/CodeGenerator.html",
+      tags: ["代码生成", "寄存器分配", "指令选择", "后端", "合法化", "legalization"]
+    },
+    {
+      title: "MIR Language Reference：机器层中间表示",
+      url: "https://llvm.org/docs/MIRLangRef.html",
+      tags: ["mir", "机器指令", "指令选择", "寄存器", "machineir"]
+    },
+    {
+      title: "LLVM Testing Infrastructure Guide：lit 与测试用例写法",
+      url: "https://llvm.org/docs/TestingGuide.html",
+      tags: ["测试", "lit", "测试用例", "dts", "用例"]
+    },
+    {
+      title: "LLVM Release Notes：版本变化与迁移说明",
+      url: "https://llvm.org/docs/ReleaseNotes.html",
+      tags: ["版本升级", "升级", "迁移", "release", "release notes", "版本"]
+    },
+    {
+      title: "Clang Diagnostics Reference：告警诊断参考",
+      url: "https://clang.llvm.org/docs/DiagnosticsReference.html",
+      tags: ["clang", "告警", "诊断", "warning", "diagnostic", "werror", "告警对齐"]
+    },
+    {
+      title: "Clang Internals Manual：诊断与前端实现",
+      url: "https://clang.llvm.org/docs/InternalsManual.html",
+      tags: ["clang", "诊断", "diagnostic", "实现", "源码", "前端"]
+    },
+    {
+      title: "LLVM Command Guide：opt 命令",
+      url: "https://llvm.org/docs/CommandGuide/opt.html",
+      tags: ["opt", "o2", "优化", "命令行", "指令折叠", "折叠"]
+    },
+    {
+      title: "LLVM Command Guide：FileCheck",
+      url: "https://llvm.org/docs/CommandGuide/FileCheck.html",
+      tags: ["filecheck", "测试", "用例", "断言", "匹配"]
+    },
+    {
+      title: "Getting Started with the LLVM System：编译与目录结构",
+      url: "https://llvm.org/docs/GettingStarted.html",
+      tags: ["构建", "入门", "build", "cmake", "编译"]
+    },
+    {
+      title: "How to Update Debug Info：调试信息的修改",
+      url: "https://llvm.org/docs/HowToUpdateDebugInfo.html",
+      tags: ["调试信息", "debug", "dwarf", "调试"]
+    },
+    {
+      title: "GDB 官方文档：断点、观察点与调试脚本",
+      url: "https://www.gnu.org/software/gdb/documentation/",
+      tags: ["gdb", "调试", "断点", "观察点", "watchpoint", "调试器"]
+    },
+    {
+      title: "cppreference：C++ 未定义行为",
+      url: "https://en.cppreference.com/w/cpp/language/ub",
+      tags: ["ub", "未定义行为", "c++", "行为"]
+    },
+    {
+      title: "MDN：JavaScript 参考",
+      url: "https://developer.mozilla.org/zh-CN/docs/Web/JavaScript",
+      tags: ["javascript", "js", "前端", "网页", "脚本"]
+    },
+    {
+      title: "Jekyll 文档：静态站点与文章",
+      url: "https://jekyllrb.com/docs/",
+      tags: ["jekyll", "博客", "静态站点", "文章", "站点"]
+    },
+    {
+      title: "Markdown 基本语法",
+      url: "https://www.markdownguide.org/basic-syntax/",
+      tags: ["markdown", "写作", "排版", "语法"]
+    },
+    {
+      title: "Git 官方文档",
+      url: "https://git-scm.com/docs",
+      tags: ["git", "版本控制", "提交", "分支"]
+    }
+  ];
+  const LINK_LIMIT = 3;
   const DEFAULT_SETTINGS = {
     defaultCategory: "学习",
     pinnedCategories: ["学习", "每日推荐"],
@@ -331,6 +456,154 @@
     return sortTasks(list);
   }
 
+  /* ---------- 推荐阅读 ---------- */
+
+  function linkHost(url) {
+    const match = String(url || "").match(/^https?:\/\/([^/?#]+)/i);
+    return match ? match[1].replace(/^www\./i, "") : "";
+  }
+
+  // 英文 tag 按词边界匹配，免得 "ir" 命中 "first" 这种词里的片段；中文直接看包含。
+  function tagHit(haystack, tag) {
+    if (/^[a-z0-9+#.-]+$/.test(tag)) {
+      const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp("(^|[^a-z0-9])" + escaped + "([^a-z0-9]|$)").test(haystack);
+    }
+    return haystack.includes(tag);
+  }
+
+  function matchArticles(text, limit) {
+    const haystack = String(text || "").toLowerCase();
+    if (!haystack) return [];
+    return ARTICLE_SOURCES.map((entry) => {
+      let score = 0;
+      entry.tags.forEach((tag) => {
+        if (tagHit(haystack, tag)) score += tag.length >= 3 ? 3 : 2;
+      });
+      return { entry, score };
+    })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title, "zh-CN"))
+      .slice(0, limit || LINK_LIMIT)
+      .map((item) => ({ title: item.entry.title, url: item.entry.url, source: linkHost(item.entry.url) }));
+  }
+
+  // 助手给的链接要过一遍：只收 http/https，去重，最多 3 条。
+  function normalizeLinks(list) {
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach((item) => {
+      if (!item) return;
+      const raw = typeof item === "string" ? { url: item } : item;
+      const url = String(raw.url || raw.link || raw.href || "").trim();
+      if (!/^https?:\/\/\S+$/i.test(url)) return;
+      if (out.some((entry) => entry.url === url)) return;
+      const title = String(raw.title || raw.name || "").trim() || linkHost(url) || url;
+      out.push({ title: title.slice(0, 120), url: url, source: linkHost(url) });
+    });
+    return out.slice(0, LINK_LIMIT);
+  }
+
+  // 任务自己带链接就用任务的（助手挑的），否则按标题和分类去目录里找。
+  function linksForTask(task) {
+    if (!task) return [];
+    const stored = normalizeLinks(task.links);
+    if (stored.length > 0) return stored;
+    return matchArticles(String(task.title || "") + " " + String(task.category || ""), LINK_LIMIT);
+  }
+
+  /* ---------- 推荐阅读弹窗 ---------- */
+
+  let linkDialog = null;
+  let linkDialogReturn = null;
+
+  function ensureLinkDialog() {
+    if (linkDialog) return linkDialog;
+
+    const overlay = el("div", "task-link-overlay");
+    overlay.id = "task-link-dialog";
+    overlay.hidden = true;
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "task-link-dialog-title");
+
+    const panel = el("div", "task-link-panel");
+    const head = el("div", "task-link-head");
+    const heading = el("h2", "task-link-dialog-title");
+    heading.id = "task-link-dialog-title";
+    const close = el("button", "task-link-close", "×");
+    close.type = "button";
+    close.dataset.role = "link-close";
+    close.setAttribute("aria-label", "关闭推荐阅读");
+    head.append(heading, close);
+
+    const note = el("p", "task-link-note");
+    note.dataset.role = "link-note";
+    const list = el("ul", "task-link-list");
+    list.dataset.role = "link-list";
+
+    panel.append(head, note, list);
+    overlay.append(panel);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay || event.target.closest("[data-role=link-close]")) closeLinkDialog();
+    });
+
+    document.body.append(overlay);
+    linkDialog = overlay;
+    return overlay;
+  }
+
+  function openLinkDialog(task) {
+    if (!task) return false;
+    const overlay = ensureLinkDialog();
+    const heading = overlay.querySelector("#task-link-dialog-title");
+    const note = overlay.querySelector("[data-role=link-note]");
+    const list = overlay.querySelector("[data-role=link-list]");
+    const links = linksForTask(task);
+
+    if (heading) heading.textContent = task.title;
+    if (note) {
+      note.textContent =
+        links.length > 0
+          ? "按这个任务找的延伸阅读，都是公开文档，点开是新窗口。"
+          : "没找到对得上的延伸阅读。标题写具体一点，或者填上模型接口让助手来找。";
+    }
+    if (list) {
+      list.replaceChildren();
+      links.forEach((link) => {
+        const item = el("li", "task-link-item");
+        const anchor = el("a", "task-link", link.title);
+        anchor.href = link.url;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        item.append(anchor);
+        const host = link.source || linkHost(link.url);
+        if (host) item.append(el("span", "task-link-host", host));
+        list.append(item);
+      });
+    }
+
+    linkDialogReturn = document.activeElement;
+    overlay.hidden = false;
+    overlay.dataset.taskId = task.id;
+    const focusTarget = overlay.querySelector(".task-link-close");
+    if (focusTarget && typeof focusTarget.focus === "function") focusTarget.focus();
+    return true;
+  }
+
+  function closeLinkDialog() {
+    if (!linkDialog || linkDialog.hidden) return false;
+    linkDialog.hidden = true;
+    linkDialog.dataset.taskId = "";
+    const back = linkDialogReturn;
+    linkDialogReturn = null;
+    if (back && typeof back.focus === "function") back.focus();
+    return true;
+  }
+
+  function linkDialogOpen() {
+    return Boolean(linkDialog && !linkDialog.hidden);
+  }
+
   /* ---------- mutations ---------- */
 
   function createTask(input) {
@@ -347,6 +620,8 @@
       source: (input && input.source) || "manual",
       createdAt: new Date().toISOString()
     };
+    const links = normalizeLinks(input && input.links);
+    if (links.length > 0) task.links = links;
     store.tasks.push(task);
     save();
     return task;
@@ -402,6 +677,11 @@
     if (patch.category !== undefined) task.category = registerCategory(patch.category) || task.category;
     if (patch.urgency !== undefined && URGENCY_KEYS.includes(patch.urgency)) task.urgency = patch.urgency;
     if (patch.date !== undefined) task.date = patch.date ? String(patch.date) : "";
+    if (patch.links !== undefined) {
+      const links = normalizeLinks(patch.links);
+      if (links.length > 0) task.links = links;
+      else delete task.links;
+    }
     save();
     return true;
   }
@@ -419,7 +699,7 @@
     );
     if (exists) return false;
     const point = KNOWLEDGE_POINTS[dayOfYear() % KNOWLEDGE_POINTS.length];
-    store.tasks.push({
+    const task = {
       id: newId(),
       title: "今日知识点：" + point,
       category: DAILY_CATEGORY,
@@ -427,7 +707,11 @@
       date: today,
       source: "daily",
       createdAt: new Date().toISOString()
-    });
+    };
+    // 每天顺手把匹配到的延伸阅读挂在任务上，点任务卡片就能看。
+    const links = matchArticles(point, LINK_LIMIT);
+    if (links.length > 0) task.links = links;
+    store.tasks.push(task);
     save();
     return true;
   }
@@ -472,7 +756,15 @@
     if (!options || options.dog !== false) item.append(dogButton(task, options && options.compact ? "small" : ""));
 
     const body = el("div", "task-body");
-    body.append(el("span", "task-title", task.title));
+    body.dataset.action = "open-links";
+    body.dataset.id = task.id;
+    const title = el("button", "task-title task-title-btn", task.title);
+    title.type = "button";
+    title.dataset.action = "open-links";
+    title.dataset.id = task.id;
+    title.title = "看推荐阅读";
+    title.setAttribute("aria-label", "查看「" + task.title + "」的推荐阅读");
+    body.append(title);
     body.append(taskMeta(task));
     item.append(body);
 
@@ -1099,6 +1391,7 @@
     const weekday = "日一二三四五六"[new Date().getDay()];
     const names = categories();
     const existing = store.tasks.map((task) => task.title).slice(0, 60);
+    const catalog = ARTICLE_SOURCES.map((entry) => "- " + entry.title + "  " + entry.url).join("\n");
     return [
       "你是一个任务规划助手，把用户说的话拆成可执行的任务。",
       "今天是 " + today + "（星期" + weekday + "）。",
@@ -1107,7 +1400,10 @@
       "date 用 YYYY-MM-DD，只在确实和日期有关时才给，今天就是 " + today + "；不确定就省略这个字段。",
       "已经有这些任务，不要重复添加：" + (existing.length > 0 ? existing.join("；") : "（还没有）"),
       "如果用户是在问问题（例如今天有什么任务、这周该怎么安排），就把回答写进 reply，不要凭空造任务。",
-      '只输出一个 JSON 对象，不要写解释，也不要用 markdown 代码块。格式是：{"reply": "给用户看的一两句话", "tasks": [{"title": "任务标题", "category": "分类", "urgency": "normal", "date": "YYYY-MM-DD"}]}',
+      "如果任务是学某个知识点，或者用户让你找资料、推荐文章，就给这个任务挑 1-3 条延伸阅读，只能从下面这份目录里选，url 原样照抄，不要自己编：",
+      catalog,
+      "如果目录里没有对得上的，links 就给空数组。",
+      '只输出一个 JSON 对象，不要写解释，也不要用 markdown 代码块。格式是：{"reply": "给用户看的一两句话", "tasks": [{"title": "任务标题", "category": "分类", "urgency": "normal", "date": "YYYY-MM-DD", "links": [{"title": "文档名", "url": "https://..."}]}]}',
       "没有新任务时 tasks 就是空数组。"
     ].join("\n");
   }
@@ -1149,7 +1445,8 @@
           title: title,
           category: allowed.includes(item.category) ? item.category : store.settings.defaultCategory,
           urgency: URGENCY_KEYS.includes(item.urgency) ? item.urgency : "normal",
-          date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : ""
+          date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
+          links: normalizeLinks(item.links)
         };
       })
       .filter(Boolean);
@@ -1245,6 +1542,7 @@
         category: item.category || store.settings.defaultCategory,
         urgency: item.urgency,
         date: item.date,
+        links: item.links,
         source: "agent"
       });
       if (task) {
@@ -1344,6 +1642,9 @@
           form.elements.title.focus();
         }
       }
+    } else if (action === "open-links") {
+      const task = store.tasks.find((item) => item.id === id);
+      if (task) openLinkDialog(task);
     } else if (action === "home-category") {
       state.homeCategory = trigger.dataset.category;
       renderHome();
@@ -1624,6 +1925,14 @@
     }
   }
 
+  function wireLinkDialog() {
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !linkDialogOpen()) return;
+      event.preventDefault();
+      closeLinkDialog();
+    });
+  }
+
   function applyInitialFilters() {
     const params = new URLSearchParams(window.location.search);
     const category = params.get("category");
@@ -1636,8 +1945,10 @@
 
   ensureDailyRecommendation();
   applyInitialFilters();
+  ensureLinkDialog();
   wireHome();
   wireBoard();
+  wireLinkDialog();
   renderAll();
 
   window.spasreTasks = {
@@ -1748,6 +2059,20 @@
     ask: ask,
     plan: localPlan,
     answer: localAnswer,
+    linksFor: function (id) {
+      const task = store.tasks.concat(store.trash).find((item) => item.id === id);
+      return task ? linksForTask(task) : [];
+    },
+    matchArticles: matchArticles,
+    openLinks: function (id) {
+      const task = store.tasks.concat(store.trash).find((item) => item.id === id);
+      return openLinkDialog(task);
+    },
+    closeLinks: closeLinkDialog,
+    linksOpen: linkDialogOpen,
+    articleSources: function () {
+      return ARTICLE_SOURCES.map((entry) => ({ title: entry.title, url: entry.url }));
+    },
     refresh: renderAll
   };
 })();
