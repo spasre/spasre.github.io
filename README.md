@@ -69,18 +69,46 @@ await spasreTasks.answer("今天有什么任务");            // 读任务板回
 await spasreTasks.requestPlan("帮我排一下本周任务");    // 同上，但只返回新增的任务数组
 ```
 
+## 界面
+
+界面参考 WordPress 的 Sakura 主题，用一套共用样式实现：渐变页眉、毛玻璃顶栏、大圆角卡片、药丸标签，加上花瓣飘落、阅读进度条、回到顶部和滚动入场动画。
+
+- 配色全部走 CSS 变量，改颜色只需要动 `assets/css/style.css` 顶部的三个主题块（`:root`、`:root[data-theme="dark"]`、`@media (prefers-color-scheme: dark)`）。**改一处要三处同步**，否则明暗模式会不一致。
+- 明暗模式的偏好存在 localStorage 的 `spasre-theme` 里，页头内联脚本会在渲染前先套用，所以切换页面不会闪回白天模式。
+- 正文里的装饰元素（搜索无结果、空任务列表、空分类、404）都复用了下面这套贴纸。
+
+### 贴纸素材
+
+`assets/images/mascot/` 里的 21 张静态贴纸和 1 个动画都是从 `D:\emoji\Kipfei\Kipfei` 里的微信表情处理来的：原图是无透明通道的调色板 GIF，处理时用边框环出现最多的颜色作背景色，再做泛洪填充抠图、边缘高斯模糊、按 alpha 裁剪，最后导出成 WebP，整体只有 0.65MB。
+
+页面里的用法：
+
+| 文件 | 用在哪 |
+| --- | --- |
+| `happy.webp` | 首页大标题旁的吉祥物 |
+| `spin.webp` | 页脚（旋转动画） |
+| `hug.webp` | 文章页页脚 |
+| `shrug.webp` | 搜索无结果、空分类、404 页 |
+| `bored.webp` | 空任务列表 |
+| `approach.webp` | 右下角回到顶部按钮 |
+| `hero-backdrop.webp` | 首页大卡片的背景纹理 |
+
+`favicon.ico`、`favicon.png`、`apple-touch-icon.png` 是拿 `happy.webp` 合成的。
+
 ## 目录结构
 
 ```
 index.html                首页（Jekyll 模板，含文章列表、任务板与搜索数据）
 tasks.html                任务板页面（/tasks/）
+404.html                  404 页
 _layouts/post.html        文章页模板
 _includes/                页眉、页脚、head 公共片段、首页任务板片段
 assets/css/style.css      全站样式（首页、文章页与任务板共用）
-assets/js/site.js         主题切换与搜索（全站共用）
+assets/js/site.js         主题切换、搜索、花瓣与滚动动画（全站共用）
 assets/js/tasks.js        任务板逻辑与 window.spasreTasks 接口
+assets/images/mascot/     贴纸吉祥物与首页背景图
 _posts/                   Markdown 文章
 ```
 
-页眉、样式和脚本都是全站共用的：要调整导航、搜索框或配色，改 `_includes/` 与 `assets/` 下的文件即可，首页和文章页会同步生效。
+页眉、样式和脚本都是全站共用的：要调整导航、搜索框或配色，改 `_includes/` 与 `assets/` 下的文件即可，首页、文章页、任务板和 404 页会同步生效。
 

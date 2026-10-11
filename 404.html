@@ -1,0 +1,32 @@
+---
+layout: null
+permalink: /404.html
+---
+<!DOCTYPE html>
+<html lang="{{ site.lang | default: 'zh-CN' }}">
+<head>
+{% include head-common.html %}
+  <meta name="robots" content="noindex">
+  <meta name="description" content="这个地址没有内容。">
+  <title>页面走丢了 — {{ site.title | escape }}</title>
+</head>
+<body>
+  <canvas id="petals" aria-hidden="true"></canvas>
+  <div class="page">
+{% include header.html %}
+    <main id="top">
+      <section class="section error-page">
+        <img class="error-mascot" src="{{ '/assets/images/mascot/shrug.webp' | relative_url }}" alt="" width="200" height="200" decoding="async">
+        <h1>这里什么都没有</h1>
+        <p>这个地址没有内容，可能是链接写错了，或者文章被挪走了。</p>
+        <p class="hero-actions">
+          <a class="hero-btn" href="{{ '/' | relative_url }}">回到首页</a>
+          <a class="hero-btn hero-btn-ghost" href="{{ '/tasks/' | relative_url }}">去任务板</a>
+        </p>
+      </section>
+    </main>
+{% include footer.html %}
+  </div>
+  <script src="{{ '/assets/js/site.js' | relative_url }}"></script>
+</body>
+</html>

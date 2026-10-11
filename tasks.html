@@ -10,6 +10,7 @@ permalink: /tasks/
   <title>任务板 — {{ site.title | escape }}</title>
 </head>
 <body data-tasks-url="{{ '/tasks/' | relative_url }}">
+  <canvas id="petals" aria-hidden="true"></canvas>
   <div class="page">
 {% include header.html %}
     <main id="top">

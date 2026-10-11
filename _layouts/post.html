@@ -6,6 +6,8 @@
   <title>{{ page.title | escape }} — {{ site.title | escape }}</title>
 </head>
 <body>
+  <div class="read-progress" aria-hidden="true"><span></span></div>
+  <canvas id="petals" aria-hidden="true"></canvas>
   <div class="page">
 {% include header.html %}
     <main class="post" id="top">
@@ -17,6 +19,7 @@
       {% if page.excerpt %}<p class="post-excerpt">{{ page.excerpt | strip_html | normalize_whitespace | escape }}</p>{% endif %}
       <article class="post-body">{{ content }}</article>
       <div class="post-footer">
+        <img class="post-mascot" src="{{ '/assets/images/mascot/hug.webp' | relative_url }}" alt="" width="200" height="200" loading="lazy" decoding="async">
         <a class="back-link" href="{{ '/' | relative_url }}#articles">← 返回文章列表</a>
       </div>
     </main>
