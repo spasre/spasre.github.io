@@ -674,7 +674,7 @@ h1 {
 
 .task-hint code { padding: .15em .35em; border-radius: 3px; background: var(--field); font-size: .9em; }
 
-.task-agent-status { margin: 12px 0 0; color: var(--soft-ink); font-size: 12px; }
+.task-agent-status { margin: 12px 0 0; color: var(--soft-ink); font-size: 12px; white-space: pre-line; }
 
 .task-trash-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 

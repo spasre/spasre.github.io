@@ -623,16 +623,203 @@
     state.board.editingId = task ? task.id : "";
   }
 
-  /* ---------- agent hook ---------- */
+  /* ---------- 助手：内置规划 ---------- */
 
-  async function requestPlan(prompt) {
-    const endpoint = String(store.settings.agentEndpoint || "").trim();
-    if (!endpoint) throw new Error("还没有配置助手接口地址，先在下面填一个。");
-    const response = await fetch(endpoint, {
+  const WEEKDAY_INDEX = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0 };
+  const PLAN_LEAD = /^(?:请|麻烦|帮忙)?(?:帮我|帮忙|给我)?\s*(?:规划|安排|拆分|拆解|排一下|排个|列出|列一下)\s*(?:一下|下)?\s*[:：,，、]?\s*/;
+  const DATE_LEAD = /^(?:大后天|后天|明天|明日|今天|今日|今晚|本周|这周|这星期|本星期|下周|下星期|下礼拜|周[一二三四五六日天]|星期[一二三四五六日天]|礼拜[一二三四五六日天]|\d{4}\s*[-\/年.]\s*\d{1,2}\s*[-\/月.]\s*\d{1,2}|\d{1,2}\s*[-\/月]\s*\d{1,2}\s*[日号]?)\s*[，,、:：的]?\s*/;
+  const URGENCY_LEAD = /^(?:紧急|很急|重要|不急|优先|尽快|马上|立刻)\s*[:：,，]\s*/;
+  const QUESTION_HINT = /[?？]|吗|什么|哪些|多少|几个|怎么样|状态|进度|看看|看一下|列一下|列出|统计|有哪|有没有|有没|是否|情况|概览|总结|还剩|剩下|还有/;
+  const PLAN_HINT = /规划|安排|拆解|拆分|添加|加进|新建|记一下|提醒我|排一下/;
+
+  function shiftDay(base, offset) {
+    return todayKey(new Date(base.getFullYear(), base.getMonth(), base.getDate() + offset));
+  }
+
+  function resolveDate(text, base) {
+    const now = base || new Date();
+    let match = text.match(/(\d{4})\s*[-\/年.]\s*(\d{1,2})\s*[-\/月.]\s*(\d{1,2})/);
+    if (match) return todayKey(new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    match = text.match(/(\d{1,2})\s*[-\/月]\s*(\d{1,2})\s*[日号]?/);
+    if (match) {
+      const month = Number(match[1]);
+      const day = Number(match[2]);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return todayKey(new Date(now.getFullYear(), month - 1, day));
+      }
+    }
+    if (/大后天/.test(text)) return shiftDay(now, 3);
+    if (/后天/.test(text)) return shiftDay(now, 2);
+    if (/明天|明日|明早|明晚/.test(text)) return shiftDay(now, 1);
+    if (/今天|今日|今晚|当天/.test(text)) return todayKey(now);
+
+    const nextWeek = /下(?:个)?(?:周|星期|礼拜)/.test(text);
+    const thisWeek = /(?:本|这)(?:个)?(?:周|星期|礼拜)/.test(text);
+    const weekday = text.match(/(?:下(?:个)?|本|这(?:个)?)?(?:周|星期|礼拜)\s*([一二三四五六日天])/);
+    if (weekday) {
+      let diff = (WEEKDAY_INDEX[weekday[1]] - now.getDay() + 7) % 7;
+      if (nextWeek) diff = diff === 0 ? 7 : diff + 7;
+      return shiftDay(now, diff);
+    }
+    if (nextWeek) return shiftDay(now, ((7 - now.getDay()) % 7) + 7);
+    if (thisWeek) return shiftDay(now, (7 - now.getDay()) % 7);
+    return "";
+  }
+
+  function resolveUrgency(text) {
+    if (/不急|有空|随缘|闲了|之后再说/.test(text)) return "low";
+    if (/紧急|很急|急用|马上|立刻|立即|尽快|赶紧|优先做/.test(text)) return "urgent";
+    if (/重要|优先|务必|关键/.test(text)) return "high";
+    return "normal";
+  }
+
+  function resolveCategory(text) {
+    let best = "";
+    categories().forEach((name) => {
+      if (name !== DAILY_CATEGORY && name.length >= best.length && text.includes(name)) best = name;
+    });
+    return best;
+  }
+
+  function splitPlanItems(text) {
+    return String(text || "")
+      .replace(/\r\n?/g, "\n")
+      .replace(/[；;]/g, "\n")
+      .replace(/(^|\s)\d{1,2}\s*[.、)）]\s+/g, "\n")
+      .replace(/^\s*[-*•·—–]\s+/gm, "")
+      .split(/\n|。|！|!/)
+      .map((part) => {
+        const cleaned = part
+          .replace(PLAN_LEAD, "")
+          .replace(/^[:：,，、]+/, "")
+          .replace(/[:：,，、;；]+$/, "")
+          .trim();
+        const withoutDate = cleaned.replace(DATE_LEAD, "").replace(URGENCY_LEAD, "").trim();
+        return { title: withoutDate.length >= 2 ? withoutDate : cleaned, raw: cleaned };
+      })
+      .filter((item) => item.title.length >= 2);
+  }
+
+  function localPlan(prompt) {
+    const text = String(prompt || "").trim();
+    const items = splitPlanItems(text);
+    // 日期 / 紧急程度 / 分类写在开头（列表之前）时，当作整段共享的条件。
+    const shell = text.split(/\n|；|;|。|！|!/)[0] || "";
+    const sharedDate = resolveDate(shell);
+    const sharedUrgency = resolveUrgency(shell);
+    const sharedCategory = resolveCategory(shell);
+    const seen = [];
+    const plans = [];
+    items.forEach((item) => {
+      if (seen.includes(item.title)) return;
+      seen.push(item.title);
+      const urgency = resolveUrgency(item.raw);
+      plans.push({
+        title: item.title,
+        category: resolveCategory(item.raw) || sharedCategory || store.settings.defaultCategory,
+        urgency: urgency === "normal" ? sharedUrgency : urgency,
+        date: resolveDate(item.raw) || sharedDate
+      });
+    });
+    return plans;
+  }
+
+  function looksLikeQuestion(text) {
+    return QUESTION_HINT.test(text) && !PLAN_HINT.test(text);
+  }
+
+  function describeTask(task) {
+    const bits = [task.category, URGENCY_LABEL[task.urgency] || URGENCY_LABEL.normal];
+    if (task.date) bits.push(task.date);
+    return "・" + task.title + "（" + bits.join("・") + "）";
+  }
+
+  function describeList(list, limit) {
+    const shown = list.slice(0, limit).map(describeTask);
+    if (list.length > shown.length) shown.push("…还有 " + (list.length - shown.length) + " 条");
+    return shown.join("\n");
+  }
+
+  function localAnswer(prompt) {
+    const text = String(prompt || "");
+    const active = sortTasks(store.tasks);
+    const today = todayKey();
+    const overdue = active.filter((task) => task.date && dayDiff(task.date) < 0);
+    const todays = active.filter((task) => task.date === today);
+    const tomorrows = active.filter((task) => task.date && dayDiff(task.date) === 1);
+    const week = active.filter((task) => task.date && dayDiff(task.date) >= 0 && dayDiff(task.date) <= 7);
+
+    if (/回收站|删掉|删除|已完成/.test(text)) {
+      if (store.trash.length === 0) return "回收站是空的。";
+      return "回收站里有 " + store.trash.length + " 条：\n" + describeList(store.trash, 6) + "\n可以恢复，也可以永久清除。";
+    }
+    if (/分类|几类|哪些类/.test(text)) {
+      return "现有分类：" + categories().join("、") + "。首页固定显示：" + pinnedCategories().join("、") + "。";
+    }
+    if (/紧急|重要|优先/.test(text)) {
+      const hot = active.filter((task) => task.urgency === "urgent" || task.urgency === "high");
+      if (hot.length === 0) return "没有标记为紧急或重要的任务。";
+      return "紧急或重要的有 " + hot.length + " 条：\n" + describeList(hot, 6);
+    }
+    if (/逾期|过期|超期|拖了/.test(text)) {
+      if (overdue.length === 0) return "没有逾期的任务。";
+      return "逾期 " + overdue.length + " 条：\n" + describeList(overdue, 6);
+    }
+    if (/明天|明日/.test(text)) {
+      if (tomorrows.length === 0) return "明天没有排任务。";
+      return "明天有 " + tomorrows.length + " 条：\n" + describeList(tomorrows, 6);
+    }
+    if (/今天|今日|当天/.test(text)) {
+      if (todays.length === 0) return "今天没有排任务，未完成一共 " + active.length + " 条。";
+      return "今天有 " + todays.length + " 条：\n" + describeList(todays, 6);
+    }
+    if (/本周|这周|这星期|一周|七天/.test(text)) {
+      if (week.length === 0) return "本周内（含今天）没有排任务。";
+      return "本周内有 " + week.length + " 条：\n" + describeList(week, 8);
+    }
+    if (/多少|几个|数量|统计/.test(text)) {
+      return (
+        "未完成 " + active.length + " 条，其中今天 " + todays.length + " 条、逾期 " + overdue.length +
+        " 条、本周内 " + week.length + " 条；回收站 " + store.trash.length + " 条。"
+      );
+    }
+
+    const lines = ["未完成 " + active.length + " 条，今天 " + todays.length + " 条，逾期 " + overdue.length + " 条。"];
+    if (active.length === 0) {
+      lines.push("任务板是空的。可以直接加一条，或者写一句话让我拆成几条。");
+      return lines.join("\n");
+    }
+    if (overdue.length > 0) lines.push("逾期：\n" + describeList(overdue, 3));
+    if (todays.length > 0) lines.push("今天：\n" + describeList(todays, 5));
+    if (overdue.length === 0 && todays.length === 0) lines.push("接下来：\n" + describeList(active, 5));
+    return lines.join("\n");
+  }
+
+  /* ---------- 助手：接口调用 ---------- */
+
+  function addPlanned(list) {
+    const added = [];
+    (list || []).forEach((item) => {
+      if (!item || !item.title) return;
+      const task = createTask({
+        title: item.title,
+        category: item.category || store.settings.defaultCategory,
+        urgency: item.urgency,
+        date: item.date,
+        source: "agent"
+      });
+      if (task) added.push(task);
+    });
+    if (added.length > 0) renderAll();
+    return added;
+  }
+
+  async function askRemote(text) {
+    const response = await fetch(String(store.settings.agentEndpoint).trim(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt: String(prompt || "").trim(),
+        prompt: text,
         today: todayKey(),
         categories: categories(),
         tasks: store.tasks.map((task) => ({
@@ -646,20 +833,40 @@
     if (!response.ok) throw new Error("接口返回 " + response.status);
     const data = await response.json();
     const incoming = Array.isArray(data) ? data : Array.isArray(data && data.tasks) ? data.tasks : [];
-    const added = [];
-    incoming.forEach((item) => {
-      if (!item || !item.title) return;
-      const task = createTask({
-        title: item.title,
-        category: item.category || store.settings.defaultCategory,
-        urgency: item.urgency,
-        date: item.date,
-        source: "agent"
-      });
-      if (task) added.push(task);
-    });
-    renderAll();
-    return added;
+    const added = addPlanned(incoming);
+    const remoteReply = data && typeof data.reply === "string" ? data.reply.trim() : "";
+    let reply = remoteReply;
+    if (!reply) reply = added.length > 0 ? "助手添加了 " + added.length + " 个任务。" : "助手没有返回新任务。";
+    return { source: "remote", reply, added };
+  }
+
+  async function ask(prompt) {
+    const text = String(prompt || "").trim();
+    if (!text) throw new Error("先写点想做的事，或者想问的问题。");
+    if (String(store.settings.agentEndpoint || "").trim()) return askRemote(text);
+
+    if (looksLikeQuestion(text)) {
+      return { source: "local", reply: localAnswer(text), added: [] };
+    }
+    const added = addPlanned(localPlan(text));
+    if (added.length === 0) {
+      return {
+        source: "local",
+        reply: "没看明白要做什么。一条一条写会更准：用换行、分号或「1. 2. 3.」分开。",
+        added
+      };
+    }
+    const dated = added.filter((task) => task.date).length;
+    const reply =
+      "内置规划加了 " + added.length + " 个任务" + (dated > 0 ? "，其中 " + dated + " 条带日期" : "") + "：\n" +
+      describeList(added, 10) +
+      "\n（想换成自己的模型，把接口地址填上就行。）";
+    return { source: "local", reply, added };
+  }
+
+  async function requestPlan(prompt) {
+    const result = await ask(prompt);
+    return result.added;
   }
 
   /* ---------- wiring ---------- */
@@ -820,10 +1027,10 @@
         const status = document.getElementById("agent-status");
         const prompt = document.getElementById("agent-prompt");
         updateSettings({ agentEndpoint: endpoint ? endpoint.value.trim() : "" });
-        if (status) status.textContent = "正在请求助手…";
+        if (status) status.textContent = "正在处理…";
         try {
-          const added = await requestPlan(prompt ? prompt.value : "");
-          if (status) status.textContent = added.length > 0 ? "助手添加了 " + added.length + " 个任务。" : "助手没有返回新任务。";
+          const result = await ask(prompt ? prompt.value : "");
+          if (status) status.textContent = result.reply;
         } catch (error) {
           if (status) status.textContent = String(error.message || error);
         }
@@ -848,7 +1055,7 @@
   renderAll();
 
   window.spasreTasks = {
-    version: 1,
+    version: 2,
     storageKey: STORE_KEY,
     today: todayKey,
     list: function (options) {
@@ -901,6 +1108,9 @@
       return this.updateSettings({ agentEndpoint: String(url || "").trim() });
     },
     requestPlan: requestPlan,
+    ask: ask,
+    plan: localPlan,
+    answer: localAnswer,
     refresh: renderAll
   };
 })();

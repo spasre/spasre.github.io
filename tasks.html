@@ -94,19 +94,19 @@ permalink: /tasks/
         </section>
 
         <section class="task-panel-block" aria-labelledby="task-agent-title">
-          <h2 class="task-panel-title" id="task-agent-title">AI 助手（接口预留）</h2>
-          <p class="task-hint">填好接口地址后，可以让助手读当前任务、把下一步写进任务板。请求体是 <code>{ prompt, today, categories, tasks }</code>，返回 <code>{ "tasks": [{ "title", "category", "urgency", "date" }] }</code> 就会自动加进来。也可以直接在控制台调用 <code>spasreTasks.requestPlan("帮我规划这周")</code>。</p>
+          <h2 class="task-panel-title" id="task-agent-title">助手</h2>
+          <p class="task-hint">不填接口也能用：内置规划会把一段话拆成任务，认日期（今天 / 明天 / 周三 / 10-12）、紧急程度和分类；问它「今天有什么任务」这类问题，它会直接读任务板回答。填上接口地址后，改由你自己的模型来处理，请求体是 <code>{ prompt, today, categories, tasks }</code>，返回 <code>{ "tasks": [{ "title", "category", "urgency", "date" }] }</code> 或 <code>{ "reply": "..." }</code>。也可以直接在控制台调用 <code>spasreTasks.ask("...")</code>。</p>
           <div class="task-panel-grid">
             <label class="task-field">
-              <span>接口地址</span>
-              <input class="task-input" type="url" id="agent-endpoint" placeholder="https://example.com/plan">
+              <span>接口地址（可留空）</span>
+              <input class="task-input" type="url" id="agent-endpoint" placeholder="留空就用内置规划">
             </label>
             <label class="task-field">
               <span>想让助手做什么</span>
-              <textarea class="task-textarea" id="agent-prompt" rows="2" placeholder="例如：帮我把这周的实习任务排一下"></textarea>
+              <textarea class="task-textarea" id="agent-prompt" rows="2" placeholder="例如：帮我规划这周 —— 复习 IR；周三整理周报；今天把周报写完"></textarea>
             </label>
             <div class="task-actions-cell">
-              <button class="task-submit" type="button" id="agent-run">让助手规划</button>
+              <button class="task-submit" type="button" id="agent-run">交给助手</button>
             </div>
           </div>
           <p class="task-agent-status" id="agent-status" role="status"></p>
