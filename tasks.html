@@ -97,28 +97,76 @@ permalink: /tasks/
         <section class="task-panel-block" aria-labelledby="task-agent-title">
           <h2 class="task-panel-title" id="task-agent-title">助手</h2>
           <p class="task-hint">不填模型也能用：内置规划会把一段话拆成任务，认日期（今天 / 明天 / 周三 / 10-12）、紧急程度和分类；问它「今天有什么任务」这类问题，它会直接读任务板回答。填上模型接口后，改由你自己的模型来拆解和规划，结果直接写进任务板。</p>
-          <div class="task-panel-grid">
-            <label class="task-field">
-              <span>模型接口地址</span>
-              <input class="task-input" type="url" id="agent-base" placeholder="https://api.deepseek.com/v1" autocomplete="off" spellcheck="false">
-            </label>
-            <label class="task-field">
-              <span>模型名</span>
-              <input class="task-input" type="text" id="agent-model" placeholder="deepseek-chat" autocomplete="off" spellcheck="false">
-            </label>
-            <label class="task-field">
-              <span>密钥</span>
-              <input class="task-input" type="password" id="agent-key" placeholder="本地模型可留空" autocomplete="off" spellcheck="false">
-            </label>
-            <div class="task-actions-cell task-agent-tools">
-              <label class="task-check">
-                <input type="checkbox" id="agent-remember-key">
-                <span>记住密钥</span>
-              </label>
-              <button class="task-action" type="button" id="agent-test">测试连接</button>
+
+          <div class="task-agent-card" id="agent-summary" hidden>
+            <div class="task-agent-card-main">
+              <span class="task-agent-dot" aria-hidden="true"></span>
+              <div>
+                <p class="task-agent-card-title" id="agent-summary-title"></p>
+                <p class="task-agent-card-detail" id="agent-summary-detail"></p>
+              </div>
+            </div>
+            <div class="task-actions-cell">
+              <button class="task-action" type="button" id="agent-edit">设置</button>
+              <button class="task-action" type="button" id="agent-export">导出 .env</button>
+              <button class="task-action" type="button" id="agent-import">导入 .env</button>
+              <input type="file" id="agent-import-file" accept=".env,text/plain" hidden>
             </div>
           </div>
-          <p class="task-hint">地址填 OpenAI 兼容的根路径，会自动补 <code>/chat/completions</code>：DeepSeek、Moonshot、Groq、SiliconFlow、Ollama（<code>http://localhost:11434/v1</code>）都可以。密钥只存在这台设备的浏览器里，不会上传到博客。如果报跨域（CORS）错误，说明这家接口不允许网页直连，把地址指向自己的代理就行。</p>
+
+          <div class="task-agent-gate" id="agent-gate" hidden>
+            <p class="task-hint" id="agent-gate-hint"></p>
+            <div class="task-panel-grid">
+              <label class="task-field">
+                <span id="agent-pw-label">密码</span>
+                <input class="task-input" type="password" id="agent-password" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="task-field" id="agent-pw-confirm-field" hidden>
+                <span>再输一遍</span>
+                <input class="task-input" type="password" id="agent-password-confirm" autocomplete="off" spellcheck="false">
+              </label>
+              <div class="task-actions-cell">
+                <button class="task-submit" type="button" id="agent-gate-submit">解锁</button>
+                <button class="task-action" type="button" id="agent-gate-cancel">取消</button>
+              </div>
+            </div>
+            <p class="task-agent-status" id="agent-gate-status" role="status"></p>
+          </div>
+
+          <div id="agent-setup">
+            <div class="task-panel-grid">
+              <label class="task-field">
+                <span>模型接口地址</span>
+                <input class="task-input" type="url" id="agent-base" placeholder="https://api.deepseek.com/v1" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="task-field">
+                <span>模型名</span>
+                <input class="task-input" type="text" id="agent-model" placeholder="deepseek-chat" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="task-field">
+                <span>密钥</span>
+                <input class="task-input" type="password" id="agent-key" placeholder="本地模型可留空" autocomplete="off" spellcheck="false">
+              </label>
+              <div class="task-actions-cell task-agent-tools">
+                <label class="task-check">
+                  <input type="checkbox" id="agent-remember-key">
+                  <span>记住密钥</span>
+                </label>
+                <button class="task-action" type="button" id="agent-test">测试连接</button>
+                <button class="task-action" type="button" id="agent-collapse" hidden>收起</button>
+              </div>
+            </div>
+            <p class="task-hint">地址填 OpenAI 兼容的根路径，会自动补 <code>/chat/completions</code>：DeepSeek、Moonshot、Groq、SiliconFlow、Ollama（<code>http://localhost:11434/v1</code>）都可以。测试通过后这几栏会收起来，要改点「设置」（要先过密码）。</p>
+            <details class="task-details">
+              <summary>自定义接口（高级）</summary>
+              <p class="task-hint">不用 OpenAI 兼容格式时可以填自己的地址，填了就优先用它。请求体是 <code>{ prompt, today, categories, tasks }</code>，返回 <code>{ "tasks": [{ "title", "category", "urgency", "date" }] }</code> 或 <code>{ "reply": "..." }</code>。也可以在控制台调用 <code>spasreTasks.ask("...")</code>。</p>
+              <label class="task-field">
+                <span>自定义接口地址</span>
+                <input class="task-input" type="url" id="agent-endpoint" placeholder="留空就不用">
+              </label>
+            </details>
+          </div>
+
           <div class="task-panel-grid">
             <label class="task-field">
               <span>想让助手做什么</span>
@@ -129,14 +177,6 @@ permalink: /tasks/
             </div>
           </div>
           <p class="task-agent-status" id="agent-status" role="status"></p>
-          <details class="task-details">
-            <summary>自定义接口（高级）</summary>
-            <p class="task-hint">不用 OpenAI 兼容格式时可以填自己的地址，填了就优先用它。请求体是 <code>{ prompt, today, categories, tasks }</code>，返回 <code>{ "tasks": [{ "title", "category", "urgency", "date" }] }</code> 或 <code>{ "reply": "..." }</code>。也可以在控制台调用 <code>spasreTasks.ask("...")</code>。</p>
-            <label class="task-field">
-              <span>自定义接口地址</span>
-              <input class="task-input" type="url" id="agent-endpoint" placeholder="留空就不用">
-            </label>
-          </details>
         </section>
       </section>
     </main>

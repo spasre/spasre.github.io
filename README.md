@@ -58,8 +58,30 @@
 - 请求里会带上今天的日期、可用分类、已有任务列表，并要求模型只返回
   `{"reply": "...", "tasks": [{ "title", "category", "urgency", "date" }]}`。返回里 `category` 不在分类表中会落到默认分类，`urgency`、`date` 不合法会被纠正或丢掉，和已有任务重名的会跳过。
 - 报错会分情况提示：401/403 密钥问题、404 地址少了 `/v1`、429 频率或额度、跨域失败提示改用代理。
-- **密钥只存在你自己的浏览器里**（勾了「记住密钥」进 localStorage，不勾只进 sessionStorage，关掉标签页就没了），不会上传到博客。但纯静态站直连 API 意味着密钥在浏览器里，别在公用电脑上填。
 - 有些接口不允许网页直连（CORS），这时地址指向自己的代理就行，见下面。
+
+### 配置存在哪、怎么改
+
+测试连接通过之后，几个输入框就会收起来，只留一行摘要（「已连接 · 模型名」）。这样平时不会把密钥摊在页面上，要改配置得先过一道密码。
+
+- **改设置要点「设置」**，第一次会让你先定一个密码（至少 4 位，输两遍）。之后每次改都要先输密码，密码对了才展开输入框。
+- **密码只存哈希**：用 WebCrypto 的 `PBKDF2-SHA256`（150000 轮、16 字节随机 salt）算出的派生值，和 salt 一起放进 localStorage。原文不落盘，也不会发出去。注意 PBKDF2 依赖 `crypto.subtle`，只有 `https`（或 `localhost`）才有，`file://` 打开会提示「这个浏览器不给用加密接口」。
+- **配置可以导出成 `.env`**：点「导出 .env」会下载一个 `spasre-agent.env`，内容就是标准键值对，改个名字当 `.env` 存起来就行：
+
+  ```
+  SPASRE_AGENT_BASE_URL=https://api.deepseek.com/v1
+  SPASRE_AGENT_MODEL=deepseek-chat
+  SPASRE_AGENT_API_KEY=sk-…
+  SPASRE_AGENT_REMEMBER_KEY=true
+  SPASRE_AGENT_ENDPOINT=
+  SPASRE_AGENT_PASSWORD_HASH=…
+  SPASRE_AGENT_PASSWORD_SALT=…
+  ```
+
+  换电脑、换浏览器时点「导入 .env」选这个文件，配置和密码哈希会一起回来（不用重新设密码）。
+- 仓库根目录的 `.gitignore` 已经忽略 `.env`、`*.env`，导出后放在仓库目录里也不会被提交。**但文件里是明文密钥，别传到任何公开的地方。**
+
+> 安全边界说清楚：纯静态站点没有后端，密码门挡的是「随手改设置」和「旁边的人看一眼」，挡不住懂行的人——localStorage 里能翻到哈希，浏览器请求里也带着密钥。别在公用电脑上填，别把 `.env` 提交上去。
 
 **接口不让网页直连时**（控制台报 CORS），用一个自己的转发就够了，Cloudflare Worker 十几行：
 
@@ -109,6 +131,9 @@ spasreTasks.purge(id);                               // 永久清除
 spasreTasks.updateSettings({ defaultCategory: "工作" });
 spasreTasks.setAgent({ baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", apiKey: "sk-…" });
 await spasreTasks.testAgent();                       // 测一下模型接口通不通
+await spasreTasks.unlockAgent("密码");                // 解开设置密码门（首次调用即设密码）
+spasreTasks.agentEnvText();                          // 生成 .env 文本
+spasreTasks.importAgentEnv(text);                    // 从 .env 文本读入配置
 spasreTasks.plan("复习 IR；整理周报");                 // 只算计划，不落库
 await spasreTasks.ask("帮我规划这周");                 // → { source, reply, added }，没配接口就用内置规划
 await spasreTasks.answer("今天有什么任务");            // 读任务板回答
@@ -157,6 +182,7 @@ assets/js/site.js         主题切换、搜索、叶片飘落与滚动动画（
 assets/js/tasks.js        任务板逻辑与 window.spasreTasks 接口
 assets/images/mascot/     贴纸吉祥物与首页背景图
 _posts/                   Markdown 文章
+.gitignore                忽略 .env（助手配置与密钥）等本地文件
 ```
 
 页眉、样式和脚本都是全站共用的：要调整导航、搜索框或配色，改 `_includes/` 与 `assets/` 下的文件即可，首页、文章页、任务板和 404 页会同步生效。

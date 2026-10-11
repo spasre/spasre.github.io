@@ -729,6 +729,40 @@ h1 {
 
 .task-agent-tools { align-items: center; }
 
+.task-agent-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--field);
+}
+.task-agent-card-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.task-agent-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--leaf);
+  box-shadow: 0 0 0 4px var(--field);
+}
+.task-agent-card-title { margin: 0; color: var(--ink); font-size: 13px; font-weight: 600; }
+.task-agent-card-detail { margin: 3px 0 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+
+.task-agent-gate {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--brand);
+  border-radius: 14px;
+  background: var(--field);
+}
+.task-agent-gate .task-hint { margin-top: 0; }
+.task-agent-gate .task-field { max-width: 320px; }
+
 .task-details { margin-top: 14px; }
 .task-details > summary {
   padding: 4px 0;

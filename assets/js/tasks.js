@@ -38,10 +38,17 @@
     agentModel: "",
     agentApiKey: "",
     agentRememberKey: true,
-    agentEndpoint: ""
+    agentEndpoint: "",
+    agentSetupDone: false,
+    agentVerifiedAt: "",
+    agentPasswordHash: "",
+    agentPasswordSalt: ""
   };
   const AGENT_KEY_STORAGE = "spasre-agent-key";
   const AGENT_TIMEOUT = 60000;
+  const AGENT_PBKDF2_ROUNDS = 150000;
+  const AGENT_ENV_FILE = "spasre-agent.env";
+  const AGENT_PASSWORD_MIN = 4;
 
   const DOG_ICON =
     '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">' +
@@ -55,7 +62,8 @@
 
   const state = {
     homeCategory: "",
-    board: { view: "active", category: "all", urgency: "all", scope: "all", editingId: "" }
+    board: { view: "active", category: "all", urgency: "all", scope: "all", editingId: "" },
+    agent: { unlocked: false, gate: "" }
   };
 
   let store = load();
@@ -121,6 +129,123 @@
     } catch (error) {
       /* 同上 */
     }
+  }
+
+  /* ---------- agent password ---------- */
+
+  function subtleCrypto() {
+    return window.crypto && window.crypto.subtle ? window.crypto.subtle : null;
+  }
+
+  function base64FromBytes(bytes) {
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return window.btoa(binary);
+  }
+
+  function bytesFromBase64(text) {
+    const binary = window.atob(String(text || ""));
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  }
+
+  function newSalt() {
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    return base64FromBytes(bytes);
+  }
+
+  // 只存 PBKDF2-SHA256 的派生结果，原文不落盘。纯前端挡不住懂行的人，
+  // 但能挡住随手改设置和旁观。
+  async function hashPassword(password, saltBase64) {
+    const subtle = subtleCrypto();
+    if (!subtle) throw new Error("这个浏览器不给用加密接口（需要 https），没法安全地存密码。");
+    const material = await subtle.importKey(
+      "raw",
+      new TextEncoder().encode(String(password)),
+      "PBKDF2",
+      false,
+      ["deriveBits"]
+    );
+    const bits = await subtle.deriveBits(
+      { name: "PBKDF2", salt: bytesFromBase64(saltBase64), iterations: AGENT_PBKDF2_ROUNDS, hash: "SHA-256" },
+      material,
+      256
+    );
+    return base64FromBytes(new Uint8Array(bits));
+  }
+
+  function hasAgentPassword() {
+    return Boolean(store.settings.agentPasswordHash && store.settings.agentPasswordSalt);
+  }
+
+  /* ---------- agent env file ---------- */
+
+  function envValue(value) {
+    return String(value === undefined || value === null ? "" : value).replace(/[\r\n]+/g, " ").trim();
+  }
+
+  function agentEnvText() {
+    const settings = store.settings;
+    return (
+      [
+        "# spasre 博客 · 任务板助手配置",
+        "# 里面有密钥，别提交到 git（仓库的 .gitignore 已经忽略 .env）",
+        "SPASRE_AGENT_BASE_URL=" + envValue(settings.agentBaseUrl),
+        "SPASRE_AGENT_MODEL=" + envValue(settings.agentModel),
+        "SPASRE_AGENT_API_KEY=" + envValue(readAgentKey()),
+        "SPASRE_AGENT_REMEMBER_KEY=" + (settings.agentRememberKey ? "true" : "false"),
+        "SPASRE_AGENT_ENDPOINT=" + envValue(settings.agentEndpoint),
+        "SPASRE_AGENT_PASSWORD_HASH=" + envValue(settings.agentPasswordHash),
+        "SPASRE_AGENT_PASSWORD_SALT=" + envValue(settings.agentPasswordSalt)
+      ].join("\n") + "\n"
+    );
+  }
+
+  function parseAgentEnv(text) {
+    const map = {};
+    String(text || "")
+      .split(/\r?\n/)
+      .forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) return;
+        const at = trimmed.indexOf("=");
+        if (at === -1) return;
+        const key = trimmed.slice(0, at).trim();
+        let value = trimmed.slice(at + 1).trim();
+        const quoted =
+          (value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"));
+        if (quoted && value.length >= 2) value = value.slice(1, -1);
+        map[key] = value;
+      });
+    return map;
+  }
+
+  function applyAgentEnv(map) {
+    const patch = {};
+    if (map.SPASRE_AGENT_BASE_URL !== undefined) patch.agentBaseUrl = map.SPASRE_AGENT_BASE_URL;
+    if (map.SPASRE_AGENT_MODEL !== undefined) patch.agentModel = map.SPASRE_AGENT_MODEL;
+    if (map.SPASRE_AGENT_ENDPOINT !== undefined) patch.agentEndpoint = map.SPASRE_AGENT_ENDPOINT;
+    if (map.SPASRE_AGENT_REMEMBER_KEY !== undefined) patch.agentRememberKey = map.SPASRE_AGENT_REMEMBER_KEY !== "false";
+    if (map.SPASRE_AGENT_PASSWORD_HASH !== undefined) patch.agentPasswordHash = map.SPASRE_AGENT_PASSWORD_HASH;
+    if (map.SPASRE_AGENT_PASSWORD_SALT !== undefined) patch.agentPasswordSalt = map.SPASRE_AGENT_PASSWORD_SALT;
+    const complete = Boolean(patch.agentBaseUrl && patch.agentModel) || Boolean(patch.agentEndpoint);
+    if (complete) patch.agentSetupDone = true;
+    updateSettings(patch);
+    if (map.SPASRE_AGENT_API_KEY !== undefined) writeAgentKey(map.SPASRE_AGENT_API_KEY);
+    state.agent.unlocked = false;
+    state.agent.gate = "";
+    return complete;
+  }
+
+  function agentConfigured() {
+    const settings = store.settings;
+    if (!settings.agentSetupDone) return false;
+    const hasModel = Boolean(String(settings.agentBaseUrl || "").trim() && String(settings.agentModel || "").trim());
+    return hasModel || Boolean(String(settings.agentEndpoint || "").trim());
   }
 
   /* ---------- helpers ---------- */
@@ -516,6 +641,21 @@
     const dailyToggle = document.getElementById("task-daily-toggle");
     if (dailyToggle) dailyToggle.checked = Boolean(store.settings.dailyRecommendation);
 
+    renderAgentPanel();
+
+    const addCategory = document.getElementById("task-category");
+    if (addCategory && !addCategory.value) addCategory.value = store.settings.defaultCategory;
+  }
+
+  function renderAgentPanel() {
+    const setup = document.getElementById("agent-setup");
+    const summary = document.getElementById("agent-summary");
+    const gate = document.getElementById("agent-gate");
+    if (!setup && !summary) return;
+
+    const configured = agentConfigured();
+    const editing = state.agent.unlocked || !configured;
+
     const endpoint = document.getElementById("agent-endpoint");
     if (endpoint) endpoint.value = store.settings.agentEndpoint || "";
 
@@ -526,13 +666,111 @@
     if (modelInput) modelInput.value = store.settings.agentModel || "";
 
     const keyInput = document.getElementById("agent-key");
-    if (keyInput && !keyInput.value) keyInput.value = readAgentKey();
+    if (keyInput && editing && !keyInput.value) keyInput.value = readAgentKey();
 
     const rememberBox = document.getElementById("agent-remember-key");
     if (rememberBox) rememberBox.checked = Boolean(store.settings.agentRememberKey);
 
-    const addCategory = document.getElementById("task-category");
-    if (addCategory && !addCategory.value) addCategory.value = store.settings.defaultCategory;
+    // 密码门开着的时候先把表单收起来，过了门再露出来
+    if (setup) setup.hidden = !editing || Boolean(state.agent.gate);
+    if (summary) summary.hidden = editing;
+
+    const summaryTitle = document.getElementById("agent-summary-title");
+    const summaryDetail = document.getElementById("agent-summary-detail");
+    if (summaryTitle) {
+      const model = String(store.settings.agentModel || "").trim();
+      summaryTitle.textContent = configured
+        ? "已连接" + (model ? " · " + model : "")
+        : "还没配置助手";
+    }
+    if (summaryDetail) {
+      const pieces = [];
+      const base = String(store.settings.agentBaseUrl || "").trim();
+      const custom = String(store.settings.agentEndpoint || "").trim();
+      if (base) pieces.push(base);
+      if (custom) pieces.push("自定义接口 " + custom);
+      pieces.push(readAgentKey() ? "密钥已保存" : "无密钥");
+      if (hasAgentPassword()) pieces.push("已设密码");
+      if (store.settings.agentVerifiedAt) pieces.push("验证于 " + String(store.settings.agentVerifiedAt).slice(0, 16).replace("T", " "));
+      summaryDetail.textContent = pieces.join(" · ");
+    }
+
+    const collapseButton = document.getElementById("agent-collapse");
+    if (collapseButton) collapseButton.hidden = !configured || !state.agent.unlocked;
+
+    if (gate) gate.hidden = !state.agent.gate;
+    if (state.agent.gate) {
+      const setting = state.agent.gate === "set";
+      const hint = document.getElementById("agent-gate-hint");
+      const label = document.getElementById("agent-pw-label");
+      const confirmField = document.getElementById("agent-pw-confirm-field");
+      const submit = document.getElementById("agent-gate-submit");
+      if (hint) {
+        hint.textContent = setting
+          ? "第一次进设置，先定一个密码。以后改这些设置都要先输它，密码只在本机保存哈希值。"
+          : "改这些设置要先输密码。";
+      }
+      if (label) label.textContent = setting ? "设置密码" : "密码";
+      if (confirmField) confirmField.hidden = !setting;
+      if (submit) submit.textContent = setting ? "保存密码并继续" : "解锁";
+      const passwordInput = document.getElementById("agent-password");
+      if (passwordInput && typeof passwordInput.focus === "function") passwordInput.focus();
+    }
+  }
+
+  async function submitAgentGate() {
+    const passwordInput = document.getElementById("agent-password");
+    const confirmInput = document.getElementById("agent-password-confirm");
+    const status = document.getElementById("agent-gate-status");
+    const password = passwordInput ? passwordInput.value : "";
+    const fail = (message) => {
+      if (status) status.textContent = message;
+      if (passwordInput) passwordInput.value = "";
+    };
+
+    if (status) status.textContent = "处理中…";
+    try {
+      if (!hasAgentPassword()) {
+        if (password.length < AGENT_PASSWORD_MIN) {
+          fail("密码至少 " + AGENT_PASSWORD_MIN + " 位。");
+          return;
+        }
+        if (password !== (confirmInput ? confirmInput.value : "")) {
+          fail("两次输入不一样。");
+          return;
+        }
+        const salt = newSalt();
+        const hash = await hashPassword(password, salt);
+        updateSettings({ agentPasswordSalt: salt, agentPasswordHash: hash });
+      } else {
+        const hash = await hashPassword(password, store.settings.agentPasswordSalt);
+        if (hash !== store.settings.agentPasswordHash) {
+          fail("密码不对。");
+          return;
+        }
+      }
+      state.agent.unlocked = true;
+      state.agent.gate = "";
+      if (passwordInput) passwordInput.value = "";
+      if (confirmInput) confirmInput.value = "";
+      if (status) status.textContent = "";
+      renderAll();
+    } catch (error) {
+      if (status) status.textContent = String(error.message || error);
+    }
+  }
+
+  function downloadAgentEnv() {
+    const blob = new Blob([agentEnvText()], { type: "text/plain;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = AGENT_ENV_FILE;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    return AGENT_ENV_FILE;
   }
 
   function renderBoardTabs() {
@@ -1072,6 +1310,7 @@
   function renderAll() {
     renderHome();
     renderBoard();
+    renderAgentPanel();
   }
 
   function handleAction(event) {
@@ -1216,7 +1455,11 @@
 
     const endpoint = document.getElementById("agent-endpoint");
     if (endpoint) {
-      endpoint.addEventListener("change", () => updateSettings({ agentEndpoint: endpoint.value.trim() }));
+      endpoint.addEventListener("change", () => {
+        updateSettings({ agentEndpoint: endpoint.value.trim() });
+        if (endpoint.value.trim()) updateSettings({ agentSetupDone: true });
+        renderAll();
+      });
     }
 
     const baseInput = document.getElementById("agent-base");
@@ -1257,11 +1500,95 @@
         if (status) status.textContent = "正在测试连接…";
         try {
           const message = await testAgent();
-          if (status) status.textContent = message;
+          // 测试过了就把凭据收起来，避免一直摊在页面上
+          updateSettings({ agentSetupDone: true, agentVerifiedAt: new Date().toISOString() });
+          state.agent.unlocked = false;
+          state.agent.gate = "";
+          if (status) status.textContent = message + " 凭据已收好，要改点「设置」。";
+          renderAll();
         } catch (error) {
           if (status) status.textContent = String(error.message || error);
         } finally {
           testButton.disabled = false;
+        }
+      });
+    }
+
+    const collapseButton = document.getElementById("agent-collapse");
+    if (collapseButton) {
+      collapseButton.addEventListener("click", () => {
+        state.agent.unlocked = false;
+        state.agent.gate = "";
+        renderAll();
+      });
+    }
+
+    const editButton = document.getElementById("agent-edit");
+    if (editButton) {
+      editButton.addEventListener("click", () => {
+        state.agent.gate = hasAgentPassword() ? "enter" : "set";
+        const status = document.getElementById("agent-gate-status");
+        if (status) status.textContent = "";
+        renderAgentPanel();
+      });
+    }
+
+    const gateSubmit = document.getElementById("agent-gate-submit");
+    if (gateSubmit) {
+      gateSubmit.addEventListener("click", () => {
+        submitAgentGate();
+      });
+    }
+
+    const gateCancel = document.getElementById("agent-gate-cancel");
+    if (gateCancel) {
+      gateCancel.addEventListener("click", () => {
+        state.agent.gate = "";
+        const passwordInput = document.getElementById("agent-password");
+        const confirmInput = document.getElementById("agent-password-confirm");
+        if (passwordInput) passwordInput.value = "";
+        if (confirmInput) confirmInput.value = "";
+        renderAll();
+      });
+    }
+
+    ["agent-password", "agent-password-confirm"].forEach((id) => {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          submitAgentGate();
+        }
+      });
+    });
+
+    const exportButton = document.getElementById("agent-export");
+    if (exportButton) {
+      exportButton.addEventListener("click", () => {
+        const status = document.getElementById("agent-status");
+        const name = downloadAgentEnv();
+        if (status) status.textContent = "已导出 " + name + "，存到本地后可以改名叫 .env（.gitignore 已经忽略，不会提交）。";
+      });
+    }
+
+    const importButton = document.getElementById("agent-import");
+    const importFile = document.getElementById("agent-import-file");
+    if (importButton && importFile) {
+      importButton.addEventListener("click", () => importFile.click());
+      importFile.addEventListener("change", async () => {
+        const status = document.getElementById("agent-status");
+        const file = importFile.files && importFile.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const ok = applyAgentEnv(parseAgentEnv(text));
+          if (status) status.textContent = ok ? "已从 " + file.name + " 读入配置。" : "读到了文件，但里面没有完整的接口地址和模型名。";
+        } catch (error) {
+          if (status) status.textContent = "读不了这个文件：" + String(error.message || error);
+        } finally {
+          importFile.value = "";
+          renderAll();
         }
       });
     }
@@ -1368,6 +1695,7 @@
       if (config.baseUrl !== undefined) patch.agentBaseUrl = String(config.baseUrl || "").trim();
       if (config.model !== undefined) patch.agentModel = String(config.model || "").trim();
       if (config.rememberKey !== undefined) patch.agentRememberKey = Boolean(config.rememberKey);
+      if (config.setupDone !== undefined) patch.agentSetupDone = Boolean(config.setupDone);
       updateSettings(patch);
       if (config.apiKey !== undefined) writeAgentKey(config.apiKey);
       renderAll();
@@ -1379,6 +1707,36 @@
       };
     },
     testAgent: testAgent,
+    agentConfigured: agentConfigured,
+    hasAgentPassword: hasAgentPassword,
+    agentEnvText: agentEnvText,
+    importAgentEnv: function (text) {
+      const ok = applyAgentEnv(parseAgentEnv(text));
+      renderAll();
+      return ok;
+    },
+    exportAgentEnv: downloadAgentEnv,
+    unlockAgent: function (password) {
+      return (async () => {
+        if (!hasAgentPassword()) {
+          const salt = newSalt();
+          const hash = await hashPassword(password, salt);
+          updateSettings({ agentPasswordSalt: salt, agentPasswordHash: hash });
+        } else {
+          const hash = await hashPassword(password, store.settings.agentPasswordSalt);
+          if (hash !== store.settings.agentPasswordHash) return false;
+        }
+        state.agent.unlocked = true;
+        state.agent.gate = "";
+        renderAll();
+        return true;
+      })();
+    },
+    lockAgent: function () {
+      state.agent.unlocked = false;
+      state.agent.gate = "";
+      renderAll();
+    },
     requestPlan: requestPlan,
     ask: ask,
     plan: localPlan,
