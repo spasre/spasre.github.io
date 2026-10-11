@@ -1,0 +1,121 @@
+---
+layout: null
+permalink: /tasks/
+---
+<!DOCTYPE html>
+<html lang="{{ site.lang | default: 'zh-CN' }}">
+<head>
+{% include head-common.html %}
+  <meta name="description" content="任务板：记录任务、设置分类与紧急程度，点小狗表示完成。">
+  <title>任务板 — {{ site.title | escape }}</title>
+</head>
+<body data-tasks-url="{{ '/tasks/' | relative_url }}">
+  <div class="page">
+{% include header.html %}
+    <main id="top">
+      <section class="home-intro tasks-intro" aria-labelledby="tasks-page-title">
+        <h1 id="tasks-page-title">任务板</h1>
+        <p>添加任务时可以选分类和紧急程度，也可以给任务排个日期，任务会按「已逾期 / 今天 / 明天 / 本周内 / 以后 / 未排期」分组。点任务左边的小狗表示完成，任务会被叼进回收站，可以恢复，也可以永久清除。</p>
+      </section>
+
+      <section class="section" id="task-board" aria-label="任务板">
+        <form class="task-form" id="task-add-form" autocomplete="off">
+          <label class="task-field task-field-wide">
+            <span>任务</span>
+            <input class="task-input" type="text" name="title" placeholder="要做什么？" required>
+          </label>
+          <label class="task-field">
+            <span>分类</span>
+            <input class="task-input" type="text" name="category" id="task-category" list="task-category-options" placeholder="分类">
+          </label>
+          <label class="task-field">
+            <span>紧急程度</span>
+            <select class="task-select" name="urgency">
+              <option value="urgent">紧急</option>
+              <option value="high">重要</option>
+              <option value="normal" selected>普通</option>
+              <option value="low">不急</option>
+            </select>
+          </label>
+          <label class="task-field">
+            <span>日期</span>
+            <input class="task-input" type="date" name="date">
+          </label>
+          <div class="task-actions-cell">
+            <button class="task-submit" type="submit">添加任务</button>
+            <button class="task-cancel" type="button" id="task-add-cancel" hidden>取消</button>
+          </div>
+        </form>
+        <datalist id="task-category-options"></datalist>
+
+        <div class="task-toolbar">
+          <div class="task-tabs" id="task-view" role="tablist" aria-label="视图"></div>
+          <div class="task-filters">
+            <div class="task-tabs" id="task-scope" role="group" aria-label="时间范围"></div>
+            <select class="task-select" id="task-filter-category" aria-label="按分类筛选"></select>
+            <select class="task-select" id="task-filter-urgency" aria-label="按紧急程度筛选">
+              <option value="all">全部紧急度</option>
+              <option value="urgent">紧急</option>
+              <option value="high">重要</option>
+              <option value="normal">普通</option>
+              <option value="low">不急</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="task-active-panel">
+          <div id="task-groups"></div>
+        </div>
+
+        <div id="task-trash-panel" hidden>
+          <div class="task-trash-head">
+            <p class="task-hint" id="task-trash-summary"></p>
+            <button class="task-action task-action-danger" type="button" id="task-trash-clear">清空回收站</button>
+          </div>
+          <ul class="task-list" id="task-trash-list"></ul>
+        </div>
+
+        <section class="task-panel-block" aria-labelledby="task-settings-title">
+          <h2 class="task-panel-title" id="task-settings-title">设置</h2>
+          <div class="task-panel-grid">
+            <label class="task-field">
+              <span>默认分类（首页默认显示这个分类）</span>
+              <select class="task-select" id="task-default-category"></select>
+            </label>
+            <div class="task-field">
+              <span>主页要显示的分类</span>
+              <div class="task-checks" id="task-pinned-categories"></div>
+            </div>
+            <label class="task-check">
+              <input type="checkbox" id="task-daily-toggle">
+              <span>每天自动加一条「每日推荐」知识点任务</span>
+            </label>
+          </div>
+        </section>
+
+        <section class="task-panel-block" aria-labelledby="task-agent-title">
+          <h2 class="task-panel-title" id="task-agent-title">AI 助手（接口预留）</h2>
+          <p class="task-hint">填好接口地址后，可以让助手读当前任务、把下一步写进任务板。请求体是 <code>{ prompt, today, categories, tasks }</code>，返回 <code>{ "tasks": [{ "title", "category", "urgency", "date" }] }</code> 就会自动加进来。也可以直接在控制台调用 <code>spasreTasks.requestPlan("帮我规划这周")</code>。</p>
+          <div class="task-panel-grid">
+            <label class="task-field">
+              <span>接口地址</span>
+              <input class="task-input" type="url" id="agent-endpoint" placeholder="https://example.com/plan">
+            </label>
+            <label class="task-field">
+              <span>想让助手做什么</span>
+              <textarea class="task-textarea" id="agent-prompt" rows="2" placeholder="例如：帮我把这周的实习任务排一下"></textarea>
+            </label>
+            <div class="task-actions-cell">
+              <button class="task-submit" type="button" id="agent-run">让助手规划</button>
+            </div>
+          </div>
+          <p class="task-agent-status" id="agent-status" role="status"></p>
+        </section>
+      </section>
+    </main>
+{% include footer.html %}
+  </div>
+  <script src="{{ '/assets/js/site.js' | relative_url }}"></script>
+  <script src="{{ '/assets/js/tasks.js' | relative_url }}"></script>
+</body>
+</html>

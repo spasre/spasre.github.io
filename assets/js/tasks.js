@@ -1,0 +1,906 @@
+(function () {
+  "use strict";
+
+  const STORE_KEY = "spasre-tasks-v1";
+  const DAILY_CATEGORY = "每日推荐";
+  const DEFAULT_CATEGORIES = ["学习", "工作", "生活", "每日推荐"];
+  const URGENCY_KEYS = ["urgent", "high", "normal", "low"];
+  const URGENCY_LABEL = { urgent: "紧急", high: "重要", normal: "普通", low: "不急" };
+  const URGENCY_WEIGHT = { urgent: 0, high: 1, normal: 2, low: 3 };
+  const BUCKETS = [
+    ["overdue", "已逾期"],
+    ["today", "今天"],
+    ["tomorrow", "明天"],
+    ["week", "本周内"],
+    ["later", "以后"],
+    ["someday", "未排期"]
+  ];
+  const DAILY_LIMIT = 200;
+  const KNOWLEDGE_POINTS = [
+    "复习 LLVM IR 的 SSA 形式与 phi 节点",
+    "读一段 Clang 诊断（Diagnostic）实现，理清告警触发链路",
+    "弄懂 provenance 指针溯源如何支撑更激进的优化",
+    "复习 GDB 观察点（watchpoint）与条件断点用法",
+    "整理 C++ 未定义行为（UB）的常见来源",
+    "了解 LLVM Pass Manager 的分层与执行顺序",
+    "读一个优化 pass 的源码（如 InstCombine）",
+    "复习 ABI 与调用约定对代码生成的影响",
+    "了解 -O2 下常见的指令折叠与合法化流程",
+    "复习 DTS（Diagnostic Test Suite）用例的写法",
+    "弄懂 -Werror 下版本升级的告警对齐思路",
+    "复习寄存器分配与指令选择的基本流程"
+  ];
+  const DEFAULT_SETTINGS = {
+    defaultCategory: "学习",
+    pinnedCategories: ["学习", "每日推荐"],
+    dailyRecommendation: true,
+    agentEndpoint: ""
+  };
+
+  const DOG_ICON =
+    '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" aria-hidden="true">' +
+    '<path d="M6.6 3.7 4.1 6.4c-.4.5-.6 1.1-.4 1.7l1 2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M17.4 3.7l2.5 2.7c.4.5.6 1.1.4 1.7l-1 2.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M12 4.6c3.5 0 6.3 2.6 6.3 6.2 0 3.8-2.8 6.8-6.3 6.8s-6.3-3-6.3-6.8c0-3.6 2.8-6.2 6.3-6.2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' +
+    '<circle cx="9.7" cy="10.4" r="1" fill="currentColor"/>' +
+    '<circle cx="14.3" cy="10.4" r="1" fill="currentColor"/>' +
+    '<path d="M12 12.8c-.8 0-1.4.5-1.4 1.1 0 .6.6 1.1 1.4 1.1s1.4-.5 1.4-1.1c0-.6-.6-1.1-1.4-1.1Z" fill="currentColor"/>' +
+    "</svg>";
+
+  const state = {
+    homeCategory: "",
+    board: { view: "active", category: "all", urgency: "all", scope: "all", editingId: "" }
+  };
+
+  let store = load();
+
+  /* ---------- storage ---------- */
+
+  function emptyStore() {
+    return { tasks: [], trash: [], settings: Object.assign({}, DEFAULT_SETTINGS), meta: { categories: [] } };
+  }
+
+  function load() {
+    const fresh = emptyStore();
+    let raw = null;
+    try {
+      raw = window.localStorage.getItem(STORE_KEY);
+    } catch (error) {
+      console.warn("无法读取本地任务数据，将使用临时数据。", error);
+      return fresh;
+    }
+    if (!raw) return fresh;
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+        trash: Array.isArray(parsed.trash) ? parsed.trash : [],
+        settings: Object.assign({}, DEFAULT_SETTINGS, parsed.settings || {}),
+        meta: { categories: Array.isArray(parsed.meta && parsed.meta.categories) ? parsed.meta.categories : [] }
+      };
+    } catch (error) {
+      console.error("任务数据解析失败，已重置。", error);
+      return fresh;
+    }
+  }
+
+  function save() {
+    try {
+      window.localStorage.setItem(STORE_KEY, JSON.stringify(store));
+    } catch (error) {
+      console.error("无法保存任务数据。", error);
+    }
+  }
+
+  /* ---------- helpers ---------- */
+
+  function pad(value) {
+    return String(value).padStart(2, "0");
+  }
+
+  function todayKey(date) {
+    const now = date || new Date();
+    return now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate());
+  }
+
+  function parseDay(key) {
+    const parts = String(key).split("-").map(Number);
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+
+  function dayDiff(key) {
+    return Math.round((parseDay(key) - parseDay(todayKey())) / 86400000);
+  }
+
+  function dayOfYear() {
+    const now = new Date();
+    return Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
+  }
+
+  function newId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function categories() {
+    const found = [];
+    const push = (name) => {
+      const clean = String(name || "").trim();
+      if (clean && !found.includes(clean)) found.push(clean);
+    };
+    DEFAULT_CATEGORIES.forEach(push);
+    store.settings.pinnedCategories.forEach(push);
+    store.meta.categories.forEach(push);
+    store.tasks.concat(store.trash).forEach((task) => push(task.category));
+    return found;
+  }
+
+  function registerCategory(name) {
+    const clean = String(name || "").trim();
+    if (!clean || DEFAULT_CATEGORIES.includes(clean) || store.meta.categories.includes(clean)) return clean;
+    store.meta.categories.push(clean);
+    return clean;
+  }
+
+  function bucketOf(task) {
+    if (!task.date) return "someday";
+    const diff = dayDiff(task.date);
+    if (diff < 0) return "overdue";
+    if (diff === 0) return "today";
+    if (diff === 1) return "tomorrow";
+    if (diff <= 7) return "week";
+    return "later";
+  }
+
+  function sortTasks(list) {
+    return list.slice().sort((a, b) => {
+      const bucketA = BUCKETS.findIndex((entry) => entry[0] === bucketOf(a));
+      const bucketB = BUCKETS.findIndex((entry) => entry[0] === bucketOf(b));
+      if (bucketA !== bucketB) return bucketA - bucketB;
+      const weightA = URGENCY_WEIGHT[a.urgency] === undefined ? 2 : URGENCY_WEIGHT[a.urgency];
+      const weightB = URGENCY_WEIGHT[b.urgency] === undefined ? 2 : URGENCY_WEIGHT[b.urgency];
+      if (weightA !== weightB) return weightA - weightB;
+      return String(a.title).localeCompare(String(b.title), "zh-CN");
+    });
+  }
+
+  function activeTasks(category) {
+    const list = store.tasks.filter((task) => !category || category === "all" || task.category === category);
+    return sortTasks(list);
+  }
+
+  /* ---------- mutations ---------- */
+
+  function createTask(input) {
+    const title = String((input && input.title) || "").trim();
+    if (!title) return null;
+    const category = registerCategory((input && input.category) || store.settings.defaultCategory) || "未分类";
+    const urgency = URGENCY_KEYS.includes(input && input.urgency) ? input.urgency : "normal";
+    const task = {
+      id: newId(),
+      title,
+      category,
+      urgency,
+      date: input && input.date ? String(input.date) : "",
+      source: (input && input.source) || "manual",
+      createdAt: new Date().toISOString()
+    };
+    store.tasks.push(task);
+    save();
+    return task;
+  }
+
+  function completeTask(id, reason) {
+    const index = store.tasks.findIndex((task) => task.id === id);
+    if (index === -1) return false;
+    const task = store.tasks.splice(index, 1)[0];
+    task.trashedAt = new Date().toISOString();
+    task.trashReason = reason === "removed" ? "removed" : "done";
+    store.trash.unshift(task);
+    if (store.trash.length > DAILY_LIMIT) store.trash.length = DAILY_LIMIT;
+    save();
+    return true;
+  }
+
+  function restoreTask(id) {
+    const index = store.trash.findIndex((task) => task.id === id);
+    if (index === -1) return false;
+    const task = store.trash.splice(index, 1)[0];
+    delete task.trashedAt;
+    delete task.trashReason;
+    store.tasks.push(task);
+    save();
+    return true;
+  }
+
+  function purgeTask(id) {
+    const before = store.trash.length;
+    store.trash = store.trash.filter((task) => task.id !== id);
+    if (store.trash.length === before) return false;
+    save();
+    return true;
+  }
+
+  function emptyTrash() {
+    if (store.trash.length === 0) return 0;
+    const count = store.trash.length;
+    store.trash = [];
+    save();
+    return count;
+  }
+
+  function updateTask(id, patch) {
+    const task = store.tasks.find((item) => item.id === id);
+    if (!task) return false;
+    if (patch.title !== undefined) {
+      const title = String(patch.title).trim();
+      if (!title) return false;
+      task.title = title;
+    }
+    if (patch.category !== undefined) task.category = registerCategory(patch.category) || task.category;
+    if (patch.urgency !== undefined && URGENCY_KEYS.includes(patch.urgency)) task.urgency = patch.urgency;
+    if (patch.date !== undefined) task.date = patch.date ? String(patch.date) : "";
+    save();
+    return true;
+  }
+
+  function updateSettings(patch) {
+    store.settings = Object.assign({}, store.settings, patch);
+    save();
+  }
+
+  function ensureDailyRecommendation() {
+    if (!store.settings.dailyRecommendation) return false;
+    const today = todayKey();
+    const exists = store.tasks.some(
+      (task) => task.category === DAILY_CATEGORY && task.date === today && task.source === "daily"
+    );
+    if (exists) return false;
+    const point = KNOWLEDGE_POINTS[dayOfYear() % KNOWLEDGE_POINTS.length];
+    store.tasks.push({
+      id: newId(),
+      title: "今日知识点：" + point,
+      category: DAILY_CATEGORY,
+      urgency: "low",
+      date: today,
+      source: "daily",
+      createdAt: new Date().toISOString()
+    });
+    save();
+    return true;
+  }
+
+  /* ---------- shared pieces ---------- */
+
+  function dogButton(task, size) {
+    const button = el("button", "task-dog" + (size === "small" ? " task-dog-sm" : ""));
+    button.type = "button";
+    button.dataset.action = "complete";
+    button.dataset.id = task.id;
+    button.title = "完成（小狗叼走）";
+    button.setAttribute("aria-label", "完成任务：" + task.title);
+    button.innerHTML = DOG_ICON;
+    return button;
+  }
+
+  function chip(text, className) {
+    return el("span", "task-chip " + (className || ""), text);
+  }
+
+  function taskMeta(task) {
+    const meta = el("div", "task-meta");
+    meta.append(chip(task.category, "chip-category"));
+    meta.append(chip(URGENCY_LABEL[task.urgency] || URGENCY_LABEL.normal, "chip-urgency urgency-" + (task.urgency || "normal")));
+    if (task.date) {
+      const diff = dayDiff(task.date);
+      const suffix = diff < 0 ? "（逾期）" : diff === 0 ? "（今天）" : diff === 1 ? "（明天）" : "";
+      meta.append(chip(task.date + suffix, "chip-date" + (diff < 0 ? " is-overdue" : "")));
+    } else {
+      meta.append(chip("未排期", "chip-date"));
+    }
+    if (task.source === "daily") meta.append(chip("每日推荐", "chip-daily"));
+    if (task.source === "agent") meta.append(chip("助手添加", "chip-agent"));
+    return meta;
+  }
+
+  function taskItem(task, options) {
+    const item = el("li", "task-item" + (options && options.compact ? " task-item-compact" : ""));
+    item.dataset.id = task.id;
+
+    if (!options || options.dog !== false) item.append(dogButton(task, options && options.compact ? "small" : ""));
+
+    const body = el("div", "task-body");
+    body.append(el("span", "task-title", task.title));
+    body.append(taskMeta(task));
+    item.append(body);
+
+    if (!options || options.actions !== false) {
+      const actions = el("div", "task-actions");
+      const edit = el("button", "task-action", "编辑");
+      edit.type = "button";
+      edit.dataset.action = "edit";
+      edit.dataset.id = task.id;
+      const remove = el("button", "task-action task-action-danger", "删除");
+      remove.type = "button";
+      remove.dataset.action = "remove";
+      remove.dataset.id = task.id;
+      actions.append(edit, remove);
+      item.append(actions);
+    }
+    return item;
+  }
+
+  function emptyNote(text) {
+    return el("p", "task-empty", text);
+  }
+
+  /* ---------- home widget ---------- */
+
+  function pinnedCategories() {
+    const list = [];
+    const push = (name) => {
+      if (name && categories().includes(name) && !list.includes(name)) list.push(name);
+    };
+    push(store.settings.defaultCategory);
+    store.settings.pinnedCategories.forEach(push);
+    return list;
+  }
+
+  function renderHome() {
+    const root = document.getElementById("home-tasks");
+    if (!root) return;
+
+    const pinned = pinnedCategories();
+    if (!pinned.includes(state.homeCategory)) state.homeCategory = pinned[0] || "";
+    const current = state.homeCategory;
+    const all = activeTasks(current);
+
+    root.replaceChildren();
+
+    const tabs = el("div", "task-tabs");
+    pinned.forEach((name) => {
+      const tab = el("button", "task-tab", name);
+      tab.type = "button";
+      tab.dataset.action = "home-category";
+      tab.dataset.category = name;
+      tab.setAttribute("aria-pressed", String(name === current));
+      if (name === current) tab.classList.add("is-active");
+      tabs.append(tab);
+    });
+    if (tabs.childElementCount > 0) root.append(tabs);
+
+    const overdue = all.filter((task) => bucketOf(task) === "overdue").length;
+    const today = all.filter((task) => bucketOf(task) === "today").length;
+    if (current) {
+      const summary = el("p", "task-summary");
+      summary.append(el("span", "task-count", all.length + " 个未完成"));
+      if (overdue > 0) summary.append(chip(overdue + " 个逾期", "chip-urgency urgency-urgent"));
+      if (today > 0) summary.append(chip(today + " 个今天到期", "chip-urgency urgency-high"));
+      root.append(summary);
+    }
+
+    if (all.length === 0) {
+      root.append(emptyNote(current ? "「" + current + "」还没有未完成的任务，在下面加一个吧。" : "还没有任务，去任务板添加第一个吧。"));
+    } else {
+      const list = el("ul", "task-list");
+      all.slice(0, 6).forEach((task) => list.append(taskItem(task, { compact: true, actions: false })));
+      root.append(list);
+      if (all.length > 6) root.append(el("p", "task-more", "还有 " + (all.length - 6) + " 个任务，去任务板查看全部。"));
+    }
+
+    const quick = el("form", "task-quick");
+    quick.dataset.role = "quick-add";
+    const quickInput = el("input", "task-input");
+    quickInput.type = "text";
+    quickInput.placeholder = current ? "加一个「" + current + "」任务，回车添加" : "加一个任务，回车添加";
+    quickInput.setAttribute("aria-label", "快速添加任务");
+    const quickButton = el("button", "task-submit", "添加");
+    quickButton.type = "submit";
+    quick.append(quickInput, quickButton);
+    root.append(quick);
+
+    const foot = el("div", "task-home-foot");
+    const boardLink = el("a", "section-link", current ? "在任务板中查看「" + current + "」→" : "打开任务板 →");
+    boardLink.href = current ? tasksHref({ category: current }) : tasksHref();
+    foot.append(boardLink);
+    root.append(foot);
+  }
+
+  function tasksHref(params) {
+    const base = document.body.dataset.tasksUrl || "/tasks/";
+    if (!params || !params.category) return base;
+    return base + "?category=" + encodeURIComponent(params.category);
+  }
+
+  /* ---------- board ---------- */
+
+  function renderBoard() {
+    const root = document.getElementById("task-board");
+    if (!root) return;
+
+    renderCategoryOptions();
+    renderBoardTabs();
+    renderBoardList();
+    renderTrash();
+  }
+
+  function renderCategoryOptions() {
+    const list = document.getElementById("task-category-options");
+    if (!list) return;
+    list.replaceChildren();
+    categories().forEach((name) => {
+      const option = el("option", null, name);
+      option.value = name;
+      list.append(option);
+    });
+
+    const filter = document.getElementById("task-filter-category");
+    if (filter) {
+      const previous = filter.value || state.board.category;
+      filter.replaceChildren();
+      const all = el("option", null, "全部分类");
+      all.value = "all";
+      filter.append(all);
+      categories().forEach((name) => {
+        const option = el("option", null, name);
+        option.value = name;
+        filter.append(option);
+      });
+      filter.value = categories().includes(previous) ? previous : "all";
+      state.board.category = filter.value;
+    }
+
+    const defaultSelect = document.getElementById("task-default-category");
+    if (defaultSelect) {
+      defaultSelect.replaceChildren();
+      categories().forEach((name) => {
+        const option = el("option", null, name);
+        option.value = name;
+        defaultSelect.append(option);
+      });
+      defaultSelect.value = store.settings.defaultCategory;
+    }
+
+    const pinnedBox = document.getElementById("task-pinned-categories");
+    if (pinnedBox) {
+      pinnedBox.replaceChildren();
+      categories().forEach((name) => {
+        const label = el("label", "task-check");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.value = name;
+        input.dataset.action = "toggle-pinned";
+        input.checked = store.settings.pinnedCategories.includes(name);
+        label.append(input, el("span", null, name));
+        pinnedBox.append(label);
+      });
+    }
+
+    const dailyToggle = document.getElementById("task-daily-toggle");
+    if (dailyToggle) dailyToggle.checked = Boolean(store.settings.dailyRecommendation);
+
+    const endpoint = document.getElementById("agent-endpoint");
+    if (endpoint) endpoint.value = store.settings.agentEndpoint || "";
+
+    const addCategory = document.getElementById("task-category");
+    if (addCategory && !addCategory.value) addCategory.value = store.settings.defaultCategory;
+  }
+
+  function renderBoardTabs() {
+    const scopeBar = document.getElementById("task-scope");
+    if (scopeBar) {
+      scopeBar.replaceChildren();
+      [["all", "全部"], ["today", "今天"], ["overdue", "逾期"]].forEach((entry) => {
+        const tab = el("button", "task-tab", entry[1]);
+        tab.type = "button";
+        tab.dataset.action = "scope";
+        tab.dataset.scope = entry[0];
+        const active = state.board.scope === entry[0];
+        tab.setAttribute("aria-pressed", String(active));
+        if (active) tab.classList.add("is-active");
+        scopeBar.append(tab);
+      });
+    }
+
+    const viewBar = document.getElementById("task-view");
+    if (viewBar) {
+      viewBar.replaceChildren();
+      [["active", "任务"], ["trash", "回收站"]].forEach((entry) => {
+        const tab = el("button", "task-tab", entry[1]);
+        tab.type = "button";
+        tab.dataset.action = "view";
+        tab.dataset.view = entry[0];
+        const active = state.board.view === entry[0];
+        tab.setAttribute("aria-pressed", String(active));
+        if (active) tab.classList.add("is-active");
+        if (entry[0] === "trash" && store.trash.length > 0) tab.textContent = "回收站（" + store.trash.length + "）";
+        viewBar.append(tab);
+      });
+    }
+
+    const activePanel = document.getElementById("task-active-panel");
+    const trashPanel = document.getElementById("task-trash-panel");
+    if (activePanel) activePanel.hidden = state.board.view !== "active";
+    if (trashPanel) trashPanel.hidden = state.board.view !== "trash";
+  }
+
+  function renderBoardList() {
+    const groups = document.getElementById("task-groups");
+    if (!groups) return;
+    groups.replaceChildren();
+
+    const filterCategory = state.board.category;
+    const filterUrgency = state.board.urgency;
+    const scope = state.board.scope;
+
+    let list = activeTasks(filterCategory);
+    if (filterUrgency !== "all") list = list.filter((task) => task.urgency === filterUrgency);
+    if (scope === "today") list = list.filter((task) => bucketOf(task) === "today");
+    if (scope === "overdue") list = list.filter((task) => bucketOf(task) === "overdue");
+
+    if (list.length === 0) {
+      groups.append(emptyNote("这里还没有任务。用上面的表单添加一个，或者换个筛选条件看看。"));
+      return;
+    }
+
+    const buckets = scope === "all" ? BUCKETS : BUCKETS.filter((entry) => entry[0] === scope);
+    buckets.forEach((entry) => {
+      const bucketTasks = list.filter((task) => bucketOf(task) === entry[0]);
+      if (bucketTasks.length === 0) return;
+      const section = el("section", "task-group");
+      const heading = el("h3", "task-group-title");
+      heading.append(el("span", null, entry[1]), el("span", "task-group-count", String(bucketTasks.length)));
+      section.append(heading);
+      const items = el("ul", "task-list");
+      bucketTasks.forEach((task) => items.append(taskItem(task)));
+      section.append(items);
+      groups.append(section);
+    });
+  }
+
+  function renderTrash() {
+    const panel = document.getElementById("task-trash-panel");
+    if (!panel) return;
+    const list = document.getElementById("task-trash-list");
+    const summary = document.getElementById("task-trash-summary");
+    const clearButton = document.getElementById("task-trash-clear");
+
+    if (summary) {
+      summary.textContent =
+        store.trash.length === 0
+          ? "回收站是空的。点任务旁边的小狗，任务就会被叼到这里。"
+          : "回收站里有 " + store.trash.length + " 个任务，可以恢复，也可以永久清除。";
+    }
+    if (clearButton) clearButton.disabled = store.trash.length === 0;
+    if (!list) return;
+
+    list.replaceChildren();
+    if (store.trash.length === 0) return;
+
+    store.trash.forEach((task) => {
+      const item = el("li", "task-item task-item-trash");
+      item.dataset.id = task.id;
+      const body = el("div", "task-body");
+      body.append(el("span", "task-title", task.title));
+      body.append(taskMeta(task));
+      body.append(
+        task.trashReason === "removed" ? chip("已删除", "chip-removed") : chip("已完成", "chip-done")
+      );
+      item.append(body);
+
+      const actions = el("div", "task-actions");
+      const restore = el("button", "task-action", "恢复");
+      restore.type = "button";
+      restore.dataset.action = "restore";
+      restore.dataset.id = task.id;
+      const purge = el("button", "task-action task-action-danger", "永久清除");
+      purge.type = "button";
+      purge.dataset.action = "purge";
+      purge.dataset.id = task.id;
+      actions.append(restore, purge);
+      item.append(actions);
+      list.append(item);
+    });
+  }
+
+  function fillForm(task) {
+    const form = document.getElementById("task-add-form");
+    if (!form) return;
+    form.elements.title.value = task ? task.title : "";
+    form.elements.category.value = task ? task.category : store.settings.defaultCategory;
+    form.elements.urgency.value = task ? task.urgency : "normal";
+    form.elements.date.value = task ? task.date || "" : todayKey();
+    const submit = form.querySelector("[type=submit]");
+    if (submit) submit.textContent = task ? "保存修改" : "添加任务";
+    const cancel = document.getElementById("task-add-cancel");
+    if (cancel) cancel.hidden = !task;
+    state.board.editingId = task ? task.id : "";
+  }
+
+  /* ---------- agent hook ---------- */
+
+  async function requestPlan(prompt) {
+    const endpoint = String(store.settings.agentEndpoint || "").trim();
+    if (!endpoint) throw new Error("还没有配置助手接口地址，先在下面填一个。");
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: String(prompt || "").trim(),
+        today: todayKey(),
+        categories: categories(),
+        tasks: store.tasks.map((task) => ({
+          title: task.title,
+          category: task.category,
+          urgency: task.urgency,
+          date: task.date
+        }))
+      })
+    });
+    if (!response.ok) throw new Error("接口返回 " + response.status);
+    const data = await response.json();
+    const incoming = Array.isArray(data) ? data : Array.isArray(data && data.tasks) ? data.tasks : [];
+    const added = [];
+    incoming.forEach((item) => {
+      if (!item || !item.title) return;
+      const task = createTask({
+        title: item.title,
+        category: item.category || store.settings.defaultCategory,
+        urgency: item.urgency,
+        date: item.date,
+        source: "agent"
+      });
+      if (task) added.push(task);
+    });
+    renderAll();
+    return added;
+  }
+
+  /* ---------- wiring ---------- */
+
+  function renderAll() {
+    renderHome();
+    renderBoard();
+  }
+
+  function handleAction(event) {
+    const trigger = event.target.closest("[data-action]");
+    if (!trigger) return;
+    const action = trigger.dataset.action;
+    const id = trigger.dataset.id;
+
+    if (action === "complete" && completeTask(id, "done")) {
+      renderAll();
+    } else if (action === "remove" && completeTask(id, "removed")) {
+      renderAll();
+    } else if (action === "restore" && restoreTask(id)) {
+      renderAll();
+    } else if (action === "purge" && purgeTask(id)) {
+      renderAll();
+    } else if (action === "edit") {
+      const task = store.tasks.find((item) => item.id === id);
+      if (task) {
+        fillForm(task);
+        const form = document.getElementById("task-add-form");
+        if (form) {
+          if (typeof form.scrollIntoView === "function") form.scrollIntoView({ block: "center" });
+          form.elements.title.focus();
+        }
+      }
+    } else if (action === "home-category") {
+      state.homeCategory = trigger.dataset.category;
+      renderHome();
+    } else if (action === "scope") {
+      state.board.scope = trigger.dataset.scope;
+      renderBoard();
+    } else if (action === "view") {
+      state.board.view = trigger.dataset.view;
+      renderBoard();
+    } else if (action === "toggle-pinned") {
+      const name = trigger.value;
+      const pinned = store.settings.pinnedCategories.slice();
+      const index = pinned.indexOf(name);
+      if (index === -1) pinned.push(name);
+      else pinned.splice(index, 1);
+      updateSettings({ pinnedCategories: pinned });
+      renderHome();
+    }
+  }
+
+  function wireHome() {
+    const root = document.getElementById("home-tasks");
+    if (!root) return;
+    root.addEventListener("click", handleAction);
+    root.addEventListener("submit", (event) => {
+      const form = event.target.closest("[data-role=quick-add]");
+      if (!form) return;
+      event.preventDefault();
+      const input = form.querySelector("input");
+      const created = createTask({
+        title: input.value,
+        category: state.homeCategory || store.settings.defaultCategory,
+        urgency: "normal",
+        date: todayKey()
+      });
+      if (created) {
+        input.value = "";
+        renderAll();
+      }
+    });
+  }
+
+  function wireBoard() {
+    const root = document.getElementById("task-board");
+    if (!root) return;
+
+    root.addEventListener("click", handleAction);
+
+    const clearButton = document.getElementById("task-trash-clear");
+    if (clearButton) {
+      clearButton.addEventListener("click", () => {
+        if (window.confirm("永久清除回收站里的全部任务？此操作不可恢复。")) {
+          emptyTrash();
+          renderAll();
+        }
+      });
+    }
+
+    const addForm = document.getElementById("task-add-form");
+    if (addForm) {
+      addForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const values = {
+          title: addForm.elements.title.value,
+          category: addForm.elements.category.value,
+          urgency: addForm.elements.urgency.value,
+          date: addForm.elements.date.value
+        };
+        if (state.board.editingId) {
+          updateTask(state.board.editingId, values);
+        } else {
+          createTask(values);
+        }
+        fillForm(null);
+        renderAll();
+        addForm.elements.title.focus();
+      });
+    }
+
+    const cancel = document.getElementById("task-add-cancel");
+    if (cancel) {
+      cancel.addEventListener("click", () => fillForm(null));
+    }
+
+    const filterCategory = document.getElementById("task-filter-category");
+    if (filterCategory) {
+      filterCategory.addEventListener("change", () => {
+        state.board.category = filterCategory.value;
+        renderBoardList();
+      });
+    }
+
+    const filterUrgency = document.getElementById("task-filter-urgency");
+    if (filterUrgency) {
+      filterUrgency.addEventListener("change", () => {
+        state.board.urgency = filterUrgency.value;
+        renderBoardList();
+      });
+    }
+
+    const defaultSelect = document.getElementById("task-default-category");
+    if (defaultSelect) {
+      defaultSelect.addEventListener("change", () => {
+        updateSettings({ defaultCategory: defaultSelect.value });
+        renderAll();
+      });
+    }
+
+    const dailyToggle = document.getElementById("task-daily-toggle");
+    if (dailyToggle) {
+      dailyToggle.addEventListener("change", () => {
+        updateSettings({ dailyRecommendation: dailyToggle.checked });
+        if (dailyToggle.checked && ensureDailyRecommendation()) renderAll();
+      });
+    }
+
+    const endpoint = document.getElementById("agent-endpoint");
+    if (endpoint) {
+      endpoint.addEventListener("change", () => updateSettings({ agentEndpoint: endpoint.value.trim() }));
+    }
+
+    const runButton = document.getElementById("agent-run");
+    if (runButton) {
+      runButton.addEventListener("click", async () => {
+        const status = document.getElementById("agent-status");
+        const prompt = document.getElementById("agent-prompt");
+        updateSettings({ agentEndpoint: endpoint ? endpoint.value.trim() : "" });
+        if (status) status.textContent = "正在请求助手…";
+        try {
+          const added = await requestPlan(prompt ? prompt.value : "");
+          if (status) status.textContent = added.length > 0 ? "助手添加了 " + added.length + " 个任务。" : "助手没有返回新任务。";
+        } catch (error) {
+          if (status) status.textContent = String(error.message || error);
+        }
+      });
+    }
+  }
+
+  function applyInitialFilters() {
+    const params = new URLSearchParams(window.location.search);
+    const category = params.get("category");
+    if (category) state.board.category = category;
+    const view = params.get("view");
+    if (view === "trash" || view === "active") state.board.view = view;
+  }
+
+  /* ---------- boot ---------- */
+
+  ensureDailyRecommendation();
+  applyInitialFilters();
+  wireHome();
+  wireBoard();
+  renderAll();
+
+  window.spasreTasks = {
+    version: 1,
+    storageKey: STORE_KEY,
+    today: todayKey,
+    list: function (options) {
+      const category = options && options.category;
+      const includeTrash = options && options.includeTrash;
+      return (includeTrash ? store.tasks.concat(store.trash) : store.tasks).filter(
+        (task) => !category || category === "all" || task.category === category
+      );
+    },
+    categories: categories,
+    add: function (task) {
+      const created = createTask(task);
+      renderAll();
+      return created;
+    },
+    addMany: function (tasks) {
+      const added = (tasks || []).map((task) => createTask(task)).filter(Boolean);
+      renderAll();
+      return added;
+    },
+    complete: function (id) {
+      const ok = completeTask(id, "done");
+      renderAll();
+      return ok;
+    },
+    restore: function (id) {
+      const ok = restoreTask(id);
+      renderAll();
+      return ok;
+    },
+    purge: function (id) {
+      const ok = purgeTask(id);
+      renderAll();
+      return ok;
+    },
+    emptyTrash: function () {
+      const count = emptyTrash();
+      renderAll();
+      return count;
+    },
+    settings: function () {
+      return Object.assign({}, store.settings);
+    },
+    updateSettings: function (patch) {
+      updateSettings(patch);
+      renderAll();
+      return Object.assign({}, store.settings);
+    },
+    setAgentEndpoint: function (url) {
+      return this.updateSettings({ agentEndpoint: String(url || "").trim() });
+    },
+    requestPlan: requestPlan,
+    refresh: renderAll
+  };
+})();

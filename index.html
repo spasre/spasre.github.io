@@ -8,7 +8,7 @@ layout: null
   <meta name="description" content="{{ site.description | escape }}">
   <title>{{ site.title | escape }}</title>
 </head>
-<body>
+<body data-tasks-url="{{ '/tasks/' | relative_url }}">
   <div class="page">
 {% include header.html %}
     <main id="top">
@@ -16,6 +16,8 @@ layout: null
         <h1 id="site-title">{{ site.title | escape }}</h1>
         <p>{{ site.description | escape }}</p>
       </section>
+
+{% include tasks-home.html %}
 
       <section class="section" id="articles" aria-labelledby="articles-title">
         <div class="articles-heading">
@@ -63,5 +65,6 @@ layout: null
 {% include footer.html %}
   </div>
   <script src="{{ '/assets/js/site.js' | relative_url }}"></script>
+  <script src="{{ '/assets/js/tasks.js' | relative_url }}"></script>
 </body>
 </html>
