@@ -71,9 +71,12 @@ await spasreTasks.requestPlan("帮我排一下本周任务");    // 同上，但
 
 ## 界面
 
-界面参考 WordPress 的 Sakura 主题，用一套共用样式实现：渐变页眉、毛玻璃顶栏、大圆角卡片、药丸标签，加上花瓣飘落、阅读进度条、回到顶部和滚动入场动画。
+界面参考 WordPress 的 Sakura 主题，用一套共用样式实现：渐变页眉、毛玻璃顶栏、大圆角卡片、药丸标签，加上叶片飘落、阅读进度条、回到顶部和滚动入场动画。
+
+配色是**茶色 + 绿色**，两个色相都从小猫表情的毛发和衣服上取样：毛发是暖茶色（`#b4a494` 一带），衣服是橄榄绿（`#7c7c4c` 一带），落到 CSS 变量里后按 UI 需要加深到能过 WCAG AA 的对比度。
 
 - 配色全部走 CSS 变量，改颜色只需要动 `assets/css/style.css` 顶部的三个主题块（`:root`、`:root[data-theme="dark"]`、`@media (prefers-color-scheme: dark)`）。**改一处要三处同步**，否则明暗模式会不一致。
+- 主色变量是 `--brand`（茶色），强调色是 `--leaf` / `--leaf-ink` / `--leaf-soft` / `--leaf-line`（绿色），飘落粒子的颜色在 `assets/js/site.js` 的 `palette` 里（画布固定色，不随主题切换，所以取的是明暗都能看清的中间调）。
 - 明暗模式的偏好存在 localStorage 的 `spasre-theme` 里，页头内联脚本会在渲染前先套用，所以切换页面不会闪回白天模式。
 - 正文里的装饰元素（搜索无结果、空任务列表、空分类、404）都复用了下面这套贴纸。
 
@@ -104,7 +107,7 @@ tasks.html                任务板页面（/tasks/）
 _layouts/post.html        文章页模板
 _includes/                页眉、页脚、head 公共片段、首页任务板片段
 assets/css/style.css      全站样式（首页、文章页与任务板共用）
-assets/js/site.js         主题切换、搜索、花瓣与滚动动画（全站共用）
+assets/js/site.js         主题切换、搜索、叶片飘落与滚动动画（全站共用）
 assets/js/tasks.js        任务板逻辑与 window.spasreTasks 接口
 assets/images/mascot/     贴纸吉祥物与首页背景图
 _posts/                   Markdown 文章

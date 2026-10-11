@@ -18,7 +18,7 @@
     themeToggle.title = dark ? "切换日间模式" : "切换夜间模式";
     moonIcon.hidden = dark;
     sunIcon.hidden = !dark;
-    themeColor.content = dark ? "#111a27" : "#f5f8fc";
+    themeColor.content = dark ? "#17140f" : "#faf6ef";
   }
 
   themeToggle.addEventListener("click", () => {
@@ -174,7 +174,8 @@
     const context = canvas.getContext("2d");
     if (!context) return;
 
-    const palette = ["246, 195, 211", "233, 163, 187", "205, 224, 250", "255, 255, 255"];
+    // tea leaf + leaf green, sampled from the mascot's fur and clothes
+    const palette = ["176, 152, 112", "150, 166, 108", "204, 184, 146", "120, 136, 84"];
     let width = 0;
     let height = 0;
     let petals = [];
