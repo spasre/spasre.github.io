@@ -763,6 +763,9 @@ h1 {
 .task-agent-gate .task-hint { margin-top: 0; }
 .task-agent-gate .task-field { max-width: 320px; }
 
+/* 这几个类自己设了 display，会盖掉 [hidden]，得显式声明 */
+.task-agent-card[hidden], .task-agent-gate[hidden], #agent-setup[hidden], .task-field[hidden] { display: none; }
+
 .task-details { margin-top: 14px; }
 .task-details > summary {
   padding: 4px 0;

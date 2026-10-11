@@ -673,7 +673,7 @@
 
     // 密码门开着的时候先把表单收起来，过了门再露出来
     if (setup) setup.hidden = !editing || Boolean(state.agent.gate);
-    if (summary) summary.hidden = editing;
+    if (summary) summary.hidden = editing || Boolean(state.agent.gate);
 
     const summaryTitle = document.getElementById("agent-summary-title");
     const summaryDetail = document.getElementById("agent-summary-detail");
@@ -699,11 +699,19 @@
     if (collapseButton) collapseButton.hidden = !configured || !state.agent.unlocked;
 
     if (gate) gate.hidden = !state.agent.gate;
+    const setting = state.agent.gate === "set";
+    const confirmField = document.getElementById("agent-pw-confirm-field");
+    if (confirmField) confirmField.hidden = !setting;
+    if (!state.agent.gate) {
+      // 门关着就把密码框清空，免得残留上一次的输入
+      ["agent-password", "agent-password-confirm"].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.value = "";
+      });
+    }
     if (state.agent.gate) {
-      const setting = state.agent.gate === "set";
       const hint = document.getElementById("agent-gate-hint");
       const label = document.getElementById("agent-pw-label");
-      const confirmField = document.getElementById("agent-pw-confirm-field");
       const submit = document.getElementById("agent-gate-submit");
       if (hint) {
         hint.textContent = setting
@@ -711,7 +719,6 @@
           : "改这些设置要先输密码。";
       }
       if (label) label.textContent = setting ? "设置密码" : "密码";
-      if (confirmField) confirmField.hidden = !setting;
       if (submit) submit.textContent = setting ? "保存密码并继续" : "解锁";
       const passwordInput = document.getElementById("agent-password");
       if (passwordInput && typeof passwordInput.focus === "function") passwordInput.focus();
