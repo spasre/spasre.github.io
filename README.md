@@ -40,6 +40,7 @@
 - 「每日推荐」分类每天自动生成一条知识点任务（按当天日期取），可以在设置里关掉。
 - 分类是自己填的，填新的分类会自动进入分类列表。
 - 任务板里有「助手」区块：可以直接写一段话让它拆成任务，也可以问它当前任务情况。
+- 想排长期计划的话，页眉的「目标」进的是另一套东西，见下面的「长期目标」。
 
 ### 助手
 
@@ -117,6 +118,25 @@ function cors() {
 
 **自定义接口**（「高级」折叠里）：填了就走它，优先级低于模型接口。请求体是 `{ prompt, today, categories, tasks }`，返回 `{ "tasks": [...] }` 会写进任务板，返回 `{ "reply": "..." }` 会显示在状态栏，只返回数组也可以。
 
+### 长期目标
+
+页眉的「目标」进的是 `/goals/`：把一个长期目标（比如「学会写 LLVM 优化 pass」）交给助手，它会拆成一张知识点图，再按图生成每天的任务。
+
+- 目标能加、能改、能删。每个目标有标题、补充说明、分类、开始日期和「每天推进几个知识点」（1-4）。
+- 知识点图是一张 **DAG**：每个节点是一个知识点，边表示「先学这个才能学那个」。
+  - 顺序一定满足拓扑序。模型给回来的依赖关系会先过一遍清洗：认不出的人、指向自己的、重复的、以及成环的边全部丢掉（成环用 DFS 找回边切断），所以画出来永远是 DAG。
+  - 节点按「最长路径」分层，同层横排居中；边只从上一层连到下一层，方向一律自上而下。
+  - 日期按拓扑序铺：第 i 个知识点落在「开始日期 + ⌊i ÷ 每天推进数⌋」天，保证前置不晚于后继。
+- 完成的节点会点亮：点节点本身就能标记完成（再点一下取消），也可以直接在任务板里让小狗叼走对应任务 —— 两边是同一份数据，会互相同步。
+- 节点上有资料时右上角有个「资料」角标，点它弹出延伸阅读，用的就是上面那套推荐阅读目录。
+- 删目标时可以勾选把它的任务一起删掉（回收站里的也一起清）。
+
+规划走哪条路由取决于有没有配模型接口：
+
+- **没配**：走内置规划器，按「打基础 → 上手练习 → 深入原理 → 综合实践 → 输出总结」五步排，再从内置文档目录里挑几条资料挂到前几层。
+- **配了**：把目标 + 补充说明发给你的模型，要求它只输出 JSON（`{reply, nodes:[{title, brief, deps, links}]}`），`deps` 只能引用出现过的知识点标题或序号。返回的依赖会认标题也认序号，再统一重编成节点 id。
+- 模型没给出可用的东西（报错、胡言乱语、JSON 解不出来）时自动回退内置规划，并在目标卡片上说明原因。
+
 ### 推荐阅读
 
 每日推荐的知识点任务、以及助手规划出来的学习类任务，都会带上 1-3 条延伸阅读链接；点任务卡片的标题就会弹出窗口显示这些链接。
@@ -152,6 +172,32 @@ spasreTasks.linksFor(id);                            // 这条任务的推荐阅
 spasreTasks.openLinks(id);                           // 打开推荐阅读弹窗
 spasreTasks.matchArticles("LLVM IR");                // 只做目录匹配，不落库
 spasreTasks.articleSources();                        // 内置文档目录
+spasreTasks.openLinkList("标题", links, { taskId: id }); // 用现成链接开弹窗
+
+// 长期目标
+spasreTasks.goals();                                 // 全部目标
+spasreTasks.goal(id);                                // 单个目标
+spasreTasks.addGoal({ title: "学会写 LLVM 优化 pass", detail: "补充说明", category: "学习", startDate: "2026-10-12", pace: 2 });
+spasreTasks.updateGoal(id, { nodes: […], planSource: "api", planNote: "…" });
+spasreTasks.removeGoal(id, { withTasks: true });      // 顺手删掉它的任务（含回收站）
+spasreTasks.goalTasks(id);                           // 这个目标铺出来的任务
+spasreTasks.syncGoalTasks(id);                       // 让任务跟上节点（新建缺的，同步标题/日期/资料）
+spasreTasks.toggleGoalNode(id, "n3", true);          // 点亮/取消一个节点，同时同步任务
+await spasreTasks.agentChat([{ role: "user", content: "…" }], { temperature: 0.2, maxTokens: 2400 });
+                                                     // 直接跟配好的模型说一句，返回文本
+```
+
+目标页的逻辑挂在 `window.spasreGoals` 上，画图和排计划都在 `assets/js/goals.js`：
+
+```js
+await spasreGoals.planGoal(id);        // 排计划：先试模型，不行回退内置
+spasreGoals.plan(goal);                // 内置规划，只算不落库
+spasreGoals.layers(nodes);             // 拓扑分层
+spasreGoals.order(nodes);              // 拓扑序
+spasreGoals.acyclic(nodes);            // 是不是 DAG
+spasreGoals.assignDates(nodes, start, pace);
+spasreGoals.layout(nodes);             // 每层一行、行内居中，算出宽高
+spasreGoals.render();                  // 重画目标页
 ```
 
 ## 界面
@@ -188,12 +234,14 @@ spasreTasks.articleSources();                        // 内置文档目录
 ```
 index.html                首页（Jekyll 模板，含文章列表、任务板与搜索数据）
 tasks.html                任务板页面（/tasks/）
+goals.html                长期目标页面（/goals/，知识点图与每日任务）
 404.html                  404 页
 _layouts/post.html        文章页模板
 _includes/                页眉、页脚、head 公共片段、首页任务板片段
-assets/css/style.css      全站样式（首页、文章页与任务板共用）
+assets/css/style.css      全站样式（首页、文章页、任务板与目标页共用）
 assets/js/site.js         主题切换、搜索、叶片飘落与滚动动画（全站共用）
-assets/js/tasks.js        任务板逻辑与 window.spasreTasks 接口
+assets/js/tasks.js        任务板逻辑、助手与 window.spasreTasks 接口（目标数据也存在这里）
+assets/js/goals.js        长期目标页面逻辑：拓扑排序、知识点图、排计划
 assets/images/mascot/     贴纸吉祥物与首页背景图
 _posts/                   Markdown 文章
 .gitignore                忽略 .env（助手配置与密钥）等本地文件

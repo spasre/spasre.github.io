@@ -196,7 +196,7 @@
   /* ---------- storage ---------- */
 
   function emptyStore() {
-    return { tasks: [], trash: [], settings: Object.assign({}, DEFAULT_SETTINGS), meta: { categories: [] } };
+    return { tasks: [], trash: [], goals: [], settings: Object.assign({}, DEFAULT_SETTINGS), meta: { categories: [] } };
   }
 
   function load() {
@@ -214,6 +214,7 @@
       return {
         tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
         trash: Array.isArray(parsed.trash) ? parsed.trash : [],
+        goals: Array.isArray(parsed.goals) ? parsed.goals : [],
         settings: Object.assign({}, DEFAULT_SETTINGS, parsed.settings || {}),
         meta: { categories: Array.isArray(parsed.meta && parsed.meta.categories) ? parsed.meta.categories : [] }
       };
@@ -554,22 +555,32 @@
 
   function openLinkDialog(task) {
     if (!task) return false;
+    const links = linksForTask(task);
+    return openLinkList(task.title, links, {
+      empty: "没找到对得上的延伸阅读。标题写具体一点，或者填上模型接口让助手来找。",
+      taskId: task.id
+    });
+  }
+
+  // 目标节点也复用这个弹窗，所以拆出「标题 + 链接数组」的版本。
+  function openLinkList(title, links, options) {
+    const config = options || {};
     const overlay = ensureLinkDialog();
     const heading = overlay.querySelector("#task-link-dialog-title");
     const note = overlay.querySelector("[data-role=link-note]");
     const list = overlay.querySelector("[data-role=link-list]");
-    const links = linksForTask(task);
+    const items = normalizeLinks(links);
 
-    if (heading) heading.textContent = task.title;
+    if (heading) heading.textContent = String(title || "推荐阅读");
     if (note) {
       note.textContent =
-        links.length > 0
-          ? "按这个任务找的延伸阅读，都是公开文档，点开是新窗口。"
-          : "没找到对得上的延伸阅读。标题写具体一点，或者填上模型接口让助手来找。";
+        items.length > 0
+          ? config.note || "都是公开文档，点开是新窗口。"
+          : config.empty || "这里还没有可推荐的资料。";
     }
     if (list) {
       list.replaceChildren();
-      links.forEach((link) => {
+      items.forEach((link) => {
         const item = el("li", "task-link-item");
         const anchor = el("a", "task-link", link.title);
         anchor.href = link.url;
@@ -584,7 +595,7 @@
 
     linkDialogReturn = document.activeElement;
     overlay.hidden = false;
-    overlay.dataset.taskId = task.id;
+    overlay.dataset.taskId = config.taskId || "";
     const focusTarget = overlay.querySelector(".task-link-close");
     if (focusTarget && typeof focusTarget.focus === "function") focusTarget.focus();
     return true;
@@ -602,6 +613,174 @@
 
   function linkDialogOpen() {
     return Boolean(linkDialog && !linkDialog.hidden);
+  }
+
+  /* ---------- 长期目标 ---------- */
+
+  // 目标里每个节点：{ id, title, brief, deps[], links[], date, done }
+  // deps 存的是同一目标内其它节点的 id，整张图必须是 DAG（有环会在 normalize 阶段断掉）。
+
+  function cloneGoal(goal) {
+    return JSON.parse(JSON.stringify(goal));
+  }
+
+  function findGoal(id) {
+    return store.goals.find((goal) => goal.id === id) || null;
+  }
+
+  function cleanGoalNode(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const id = String(raw.id || "").trim();
+    const title = String(raw.title || "").trim();
+    if (!id || !title) return null;
+    const date = String(raw.date || "").trim();
+    const node = {
+      id: id,
+      title: title,
+      brief: String(raw.brief || "").trim(),
+      deps: (Array.isArray(raw.deps) ? raw.deps : []).map((dep) => String(dep).trim()).filter(Boolean),
+      links: normalizeLinks(raw.links),
+      date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
+      done: Boolean(raw.done)
+    };
+    return node;
+  }
+
+  // 任务完成 / 恢复时把对应节点点亮或熄灭。
+  function setGoalNodeDone(task, done) {
+    if (!task || !task.goalId || !task.nodeId) return false;
+    const goal = findGoal(task.goalId);
+    if (!goal) return false;
+    const node = (goal.nodes || []).find((item) => item.id === task.nodeId);
+    if (!node) return false;
+    node.done = Boolean(done);
+    goal.updatedAt = new Date().toISOString();
+    return true;
+  }
+
+  function createGoal(input) {
+    const source = input || {};
+    const title = String(source.title || "").trim();
+    if (!title) return null;
+    const category = registerCategory(source.category || store.settings.defaultCategory) || store.settings.defaultCategory;
+    const pace = Number(source.pace);
+    const goal = {
+      id: newId(),
+      title: title,
+      detail: String(source.detail || "").trim(),
+      category: category,
+      startDate: /^\d{4}-\d{2}-\d{2}$/.test(String(source.startDate || "")) ? String(source.startDate) : todayKey(),
+      pace: Number.isFinite(pace) && pace >= 1 && pace <= 8 ? Math.round(pace) : 1,
+      nodes: [],
+      planSource: "",
+      planNote: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    store.goals.unshift(goal);
+    save();
+    return goal;
+  }
+
+  function updateGoal(id, patch) {
+    const goal = findGoal(id);
+    if (!goal) return null;
+    const source = patch || {};
+    if (source.title !== undefined) {
+      const title = String(source.title).trim();
+      if (!title) return null;
+      goal.title = title;
+    }
+    if (source.detail !== undefined) goal.detail = String(source.detail || "").trim();
+    if (source.category !== undefined) goal.category = registerCategory(source.category) || goal.category;
+    if (source.startDate !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(String(source.startDate))) goal.startDate = String(source.startDate);
+    if (source.pace !== undefined) {
+      const pace = Number(source.pace);
+      if (Number.isFinite(pace) && pace >= 1 && pace <= 8) goal.pace = Math.round(pace);
+    }
+    if (source.planNote !== undefined) goal.planNote = String(source.planNote || "").trim();
+    if (source.planSource !== undefined) goal.planSource = String(source.planSource || "").trim();
+    if (source.nodes !== undefined) {
+      const nodes = (Array.isArray(source.nodes) ? source.nodes : []).map(cleanGoalNode).filter(Boolean);
+      // 重规划时节点 id 会变，标题没变的沿用原来的完成状态
+      const previous = new Map((goal.nodes || []).map((node) => [node.title, Boolean(node.done)]));
+      goal.nodes = nodes.map((node) => Object.assign({}, node, { done: node.done || previous.get(node.title) === true }));
+    }
+    goal.updatedAt = new Date().toISOString();
+    save();
+    return goal;
+  }
+
+  function removeGoal(id, options) {
+    const index = store.goals.findIndex((goal) => goal.id === id);
+    if (index === -1) return false;
+    store.goals.splice(index, 1);
+    if (options && options.withTasks) {
+      // 完成过的节点任务躺在回收站里，也得一起清掉
+      store.tasks = store.tasks.filter((task) => task.goalId !== id);
+      store.trash = store.trash.filter((task) => task.goalId !== id);
+    }
+    save();
+    return true;
+  }
+
+  function goalTasks(goalId) {
+    return store.tasks.filter((task) => task.goalId === goalId);
+  }
+
+  // 按节点补任务：已有对应节点任务的不动，节点没了的老任务清掉。
+  function syncGoalTasks(goalId) {
+    const goal = findGoal(goalId);
+    if (!goal) return [];
+    const ids = new Set((goal.nodes || []).map((node) => node.id));
+    const stale = new Set(
+      store.tasks.filter((task) => task.goalId === goalId && !ids.has(task.nodeId)).map((task) => task.id)
+    );
+    if (stale.size > 0) store.tasks = store.tasks.filter((task) => !stale.has(task.id));
+    const existing = new Map(
+      store.tasks.filter((task) => task.goalId === goalId).map((task) => [task.nodeId, task])
+    );
+    const created = [];
+    (goal.nodes || []).forEach((node) => {
+      const task = existing.get(node.id);
+      if (task) {
+        // 节点改名、换日期或换了资料，对应的任务跟着走
+        const title = "【" + goal.title + "】" + node.title;
+        if (task.title !== title) task.title = title;
+        if (task.date !== (node.date || "")) task.date = node.date || "";
+        if (node.links && node.links.length > 0) task.links = normalizeLinks(node.links);
+        return;
+      }
+      const fresh = createTask({
+        title: "【" + goal.title + "】" + node.title,
+        category: goal.category,
+        urgency: "normal",
+        date: node.date,
+        links: node.links,
+        source: "goal",
+        goalId: goal.id,
+        nodeId: node.id
+      });
+      if (fresh) created.push(fresh);
+    });
+    save();
+    return created;
+  }
+
+  function toggleGoalNode(goalId, nodeId, done) {
+    const goal = findGoal(goalId);
+    if (!goal) return null;
+    const node = (goal.nodes || []).find((item) => item.id === nodeId);
+    if (!node) return null;
+    node.done = done === undefined ? !node.done : Boolean(done);
+    goal.updatedAt = new Date().toISOString();
+    const task = store.tasks.concat(store.trash).find((item) => item.goalId === goalId && item.nodeId === nodeId);
+    if (task) {
+      if (node.done && !task.trashReason) completeTask(task.id, "done");
+      else if (!node.done && task.trashReason) restoreTask(task.id);
+    }
+    save();
+    return node.done;
   }
 
   /* ---------- mutations ---------- */
@@ -622,6 +801,11 @@
     };
     const links = normalizeLinks(input && input.links);
     if (links.length > 0) task.links = links;
+    // 目标节点生成的 task 会记住自己属于哪个目标的哪个节点，完成时好把节点点亮。
+    if (input && input.goalId) {
+      task.goalId = String(input.goalId);
+      if (input.nodeId) task.nodeId = String(input.nodeId);
+    }
     store.tasks.push(task);
     save();
     return task;
@@ -635,6 +819,7 @@
     task.trashReason = reason === "removed" ? "removed" : "done";
     store.trash.unshift(task);
     if (store.trash.length > DAILY_LIMIT) store.trash.length = DAILY_LIMIT;
+    if (task.trashReason === "done") setGoalNodeDone(task, true);
     save();
     return true;
   }
@@ -646,6 +831,7 @@
     delete task.trashedAt;
     delete task.trashReason;
     store.tasks.push(task);
+    setGoalNodeDone(task, false);
     save();
     return true;
   }
@@ -1531,6 +1717,14 @@
     return "连接正常，" + model + " 可以用了。";
   }
 
+  // 低层入口：自己拼 messages，拿回模型的正文。目标页规划计划时用它。
+  async function agentChat(messages, options) {
+    const config = options || {};
+    const body = { temperature: config.temperature === undefined ? 0.2 : config.temperature, messages: messages };
+    if (config.maxTokens) body.max_tokens = config.maxTokens;
+    return agentFetch(body);
+  }
+
   function addPlanned(list) {
     const added = [];
     const known = store.tasks.map((task) => String(task.title).trim());
@@ -1616,6 +1810,10 @@
     renderHome();
     renderBoard();
     renderAgentPanel();
+    // 目标页挂在同一个 store 上，改完数据广播一声让它自己重画。
+    if (typeof document.dispatchEvent === "function" && typeof window.CustomEvent === "function") {
+      document.dispatchEvent(new window.CustomEvent("spasre:change"));
+    }
   }
 
   function handleAction(event) {
@@ -2070,9 +2268,48 @@
     },
     closeLinks: closeLinkDialog,
     linksOpen: linkDialogOpen,
+    openLinkList: function (title, links, options) {
+      return openLinkList(title, links, options);
+    },
     articleSources: function () {
       return ARTICLE_SOURCES.map((entry) => ({ title: entry.title, url: entry.url }));
     },
-    refresh: renderAll
+    refresh: renderAll,
+    goals: function () {
+      return store.goals.map(cloneGoal);
+    },
+    goal: function (id) {
+      const goal = findGoal(id);
+      return goal ? cloneGoal(goal) : null;
+    },
+    addGoal: function (input) {
+      const goal = createGoal(input);
+      renderAll();
+      return goal ? cloneGoal(goal) : null;
+    },
+    updateGoal: function (id, patch) {
+      const goal = updateGoal(id, patch);
+      renderAll();
+      return goal ? cloneGoal(goal) : null;
+    },
+    removeGoal: function (id, options) {
+      const ok = removeGoal(id, options);
+      renderAll();
+      return ok;
+    },
+    goalTasks: function (goalId) {
+      return goalTasks(goalId);
+    },
+    syncGoalTasks: function (goalId) {
+      const created = syncGoalTasks(goalId);
+      renderAll();
+      return created;
+    },
+    toggleGoalNode: function (goalId, nodeId, done) {
+      const value = toggleGoalNode(goalId, nodeId, done);
+      renderAll();
+      return value;
+    },
+    agentChat: agentChat
   };
 })();

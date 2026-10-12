@@ -1340,6 +1340,97 @@ html { overflow-x: clip; }
 
 .task-link-host { color: var(--muted); font-size: 11px; }
 
+/* ---------- 长期目标 / 知识点图 ---------- */
+
+.goal-form { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; }
+
+.goal-form .task-field-wide { grid-column: 1 / -1; }
+
+.goal-card {
+  margin-top: 18px;
+  padding: 20px 22px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  box-shadow: var(--shadow-soft);
+}
+
+.goal-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+
+.goal-heading { min-width: 0; }
+
+.goal-title { margin: 0; font-size: 17px; line-height: 1.5; letter-spacing: -.01em; }
+
+.goal-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.goal-detail { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.9; }
+
+.goal-progress {
+  height: 6px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: var(--pill);
+  background: var(--field);
+}
+
+.goal-progress-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: var(--pill);
+  background: var(--grad-brand);
+  transition: width .3s ease;
+}
+
+.goal-graph-wrap { max-width: 100%; margin-top: 16px; overflow-x: auto; }
+
+.goal-graph { display: block; max-width: none; }
+
+.goal-edge { fill: none; stroke: var(--line); stroke-width: 1.4; }
+
+.goal-edge.is-lit { stroke: var(--leaf); stroke-width: 1.8; }
+
+.goal-arrow { fill: var(--line); }
+
+.goal-arrow.is-lit { fill: var(--leaf); }
+
+.goal-node { cursor: pointer; }
+
+.goal-node-box {
+  fill: var(--field);
+  stroke: var(--line);
+  stroke-width: 1.2;
+  transition: stroke .2s ease, fill .2s ease;
+}
+
+.goal-node-text { fill: var(--ink); font-size: 11.5px; font-weight: 600; }
+
+.goal-node-date { fill: var(--muted); font-size: 9.5px; }
+
+.goal-node.is-ready .goal-node-box { stroke: var(--brand); stroke-width: 1.6; }
+
+.goal-node.is-locked .goal-node-box { stroke-dasharray: 3 3; }
+
+.goal-node.is-locked .goal-node-text { fill: var(--muted); }
+
+.goal-node.is-done .goal-node-box { fill: var(--leaf-soft); stroke: var(--leaf); stroke-width: 1.8; }
+
+.goal-node.is-done .goal-node-text { fill: var(--leaf-ink); }
+
+.goal-node:hover .goal-node-box, .goal-node:focus-visible .goal-node-box { stroke: var(--brand); stroke-width: 2; }
+
+.goal-node:focus, .goal-node:focus-visible { outline: none; }
+
+.goal-node-badge { cursor: pointer; }
+
+.goal-node-badge-box { fill: var(--paper); stroke: var(--leaf-line); stroke-width: 1; }
+
+.goal-node-badge-text { fill: var(--leaf-ink); font-size: 9.5px; text-anchor: middle; }
+
+.goal-node-badge:hover .goal-node-badge-box, .goal-node-badge:focus-visible .goal-node-badge-box { fill: var(--leaf-soft); stroke: var(--leaf); }
+
+.goal-note { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.9; }
+
 .reveal {
   opacity: 0;
   transform: translateY(16px);
@@ -1352,6 +1443,9 @@ html { overflow-x: clip; }
   .home-intro { grid-template-columns: 1fr; gap: 18px; padding: 34px 26px; }
   .hero-mascot { width: clamp(96px, 30vw, 140px); justify-self: start; }
   .task-panel-block { padding: 18px; }
+  .goal-form { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .goal-card { padding: 16px 15px 18px; }
+  .goal-head { flex-direction: column; }
 }
 
 @media (max-width: 420px) {
