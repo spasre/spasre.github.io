@@ -7,8 +7,7 @@
     <nav class="nav" aria-label="主导航">
       {% assign here = page.url | default: '/' %}
       <a href="{{ '/' | relative_url }}"{% if here == '/' %} aria-current="page"{% endif %}>首页</a>
-      <a href="{{ '/tasks/' | relative_url }}"{% if here == '/tasks/' or here == '/tasks/index.html' %} aria-current="page"{% endif %}>任务</a>
-      <a href="{{ '/goals/' | relative_url }}"{% if here == '/goals/' or here == '/goals/index.html' %} aria-current="page"{% endif %}>目标</a>
+      <a href="{{ '/' | relative_url }}#articles">文章</a>
       <a href="{{ '/' | relative_url }}#categories">分类</a>
       <a href="{{ '/' | relative_url }}#about">关于</a>
     </nav>

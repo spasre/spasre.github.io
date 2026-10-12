@@ -8,7 +8,7 @@ layout: null
   <meta name="description" content="{{ site.description | escape }}">
   <title>{{ site.title | escape }}</title>
 </head>
-<body data-tasks-url="{{ '/tasks/' | relative_url }}">
+<body>
   <canvas id="petals" aria-hidden="true"></canvas>
   <div class="page">
 {% include header.html %}
@@ -20,13 +20,11 @@ layout: null
           <p>{{ site.description | escape }}</p>
           <p class="hero-actions">
             <a class="hero-btn" href="#articles">读文章</a>
-            <a class="hero-btn hero-btn-ghost" href="{{ '/tasks/' | relative_url }}">任务板</a>
+            <a class="hero-btn hero-btn-ghost" href="#categories">看分类</a>
           </p>
         </div>
         <img class="hero-mascot" src="{{ '/assets/images/mascot/happy.webp' | relative_url }}" alt="" width="320" height="320" decoding="async">
       </section>
-
-{% include tasks-home.html %}
 
       <section class="section" id="articles" aria-labelledby="articles-title">
         <div class="articles-heading">
@@ -74,6 +72,5 @@ layout: null
 {% include footer.html %}
   </div>
   <script src="{{ '/assets/js/site.js' | relative_url }}"></script>
-  <script src="{{ '/assets/js/tasks.js' | relative_url }}"></script>
 </body>
 </html>
